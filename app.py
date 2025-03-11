@@ -179,7 +179,7 @@ def reset_game(game_id):
     logger.debug(f"Game {game_id} reset by request")
     socketio.emit('game_reset', {
         'players': [p.username for p in players],
-        'scores': {p.username: p.score for p in players},
+        'scores': {p.username: p.score for p in players],
         'player_emojis': {p.username: p.emoji for p in players}
     }, to=game_id)
     
@@ -466,7 +466,7 @@ def handle_disconnect():
                 Player.query.filter_by(game_id=game.id).offset(game.current_player_index).first().username == username):
                 next_player = get_next_active_player(game.id)
                 if next_player:
-                    game.current_player_index = Player.query.filter_by(game_id=game.id).all().index(next_player)
+                    game.current_player_index = Player.query.filter_by(game.id).all().index(next_player)
                     db.session.commit()
                     emit('turn_skipped', {
                         'disconnected_player': username,
@@ -474,7 +474,5 @@ def handle_disconnect():
                     }, to=game.id)
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()  # Create tables if they don't exist
     port = int(os.environ.get("PORT", 5000))
     socketio.run(app, host='0.0.0.0', port=port, debug=True)
