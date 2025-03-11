@@ -425,7 +425,7 @@ def handle_join_game_room(data):
             emit('player_joined', {
                 'username': username,
                 'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()]
+                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
             }, to=game_id)
 
 @socketio.on('start_game')
@@ -447,8 +447,8 @@ def handle_start_game(data):
             emit('game_started', {
                 'current_player': current_player.username,
                 'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()]
+                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
+                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
             }, to=game_id)
         else:
             logger.warning(f"Invalid start game request for game {game_id} by {username}")
@@ -515,7 +515,7 @@ def process_round_results(game_id):
     if max_score >= 10:
         emit('game_ended', {
             'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()]
+            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
         }, to=game_id)
         return True
 
@@ -528,7 +528,7 @@ def process_round_results(game_id):
             'correct_players': [p.username for p in correct_players],
             'next_player': next_player.username,
             'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()]
+            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
         }, to=game_id)
         # Clear answers for the next round
         db.session.query(Answer).filter_by(game_id=game_id).delete()
@@ -588,7 +588,7 @@ def handle_submit_answer(data):
     
     active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
     num_answers = Answer.query.filter_by(game_id=game_id).count()
-
+    
     # If all active players have answered, process results immediately
     if num_answers == len(active_players):
         process_round_results(game_id)
