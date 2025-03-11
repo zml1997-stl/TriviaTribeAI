@@ -9,7 +9,7 @@
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <audio id="select-sound" src="{{ url_for('static', filename='select.mp3') }}" preload="auto"></audio>
     <audio id="submit-sound" src="{{ url_for('static', filename='submit.mp3') }}" preload="auto"></audio>
-    <audio id="correct-sound" src="{{ url_for('static', filename='submit.mp3') }}" preload="auto"></audio>
+    <audio id="correct-sound" src="{{ url_for('static', filename='correct.mp3') }}" preload="auto"></audio>
     <audio id="wrong-sound" src="{{ url_for('static', filename='wrong.mp3') }}" preload="auto"></audio>
     <audio id="round-end-sound" src="{{ url_for('static', filename='round_end.mp3') }}" preload="auto"></audio>
 </head>
@@ -31,7 +31,6 @@
                     </div>
                     
                     <div class="card-body">
-                        <!-- Waiting Lobby -->
                         <div id="waiting-lobby" class="text-center">
                             <h3>Waiting for Players</h3>
                             <p>Share the Game ID with friends to join!</p>
@@ -48,7 +47,6 @@
                             {% endif %}
                         </div>
                         
-                        <!-- Topic Selection -->
                         <div id="topic-selection" style="display: none;">
                             <h3>Select a Topic</h3>
                             <p>It's your turn to choose a topic for the trivia question!</p>
@@ -61,7 +59,6 @@
                             </div>
                         </div>
                         
-                        <!-- Question Display -->
                         <div id="question-display" style="display: none;">
                             <div class="text-center mb-4">
                                 <span class="badge bg-secondary mb-2">Topic: <span id="topic-display"></span></span>
@@ -95,7 +92,6 @@
                             </div>
                         </div>
                         
-                        <!-- Results Display -->
                         <div id="results-display" style="display: none;">
                             <h3 class="text-center mb-4">Round Results</h3>
                             
@@ -129,7 +125,6 @@
                             </div>
                         </div>
                         
-                        <!-- Scoreboard -->
                         <div id="scoreboard" class="mt-4" style="display: none;">
                             <h4>Scoreboard</h4>
                             <table class="table table-striped">
@@ -150,15 +145,12 @@
         </div>
     </div>
 
-    <!-- Leave Game Button -->
     <div id="leave-game-container" class="text-center mb-3" style="display: none;">
         <button id="leave-game-btn" class="btn btn-danger btn-lg">Leave Game</button>
     </div>
 
-    <!-- Mute Button -->
     <button id="mute-btn" class="music-control-btn">🔇</button>
 
-    <!-- Footer with Customized Disclaimer -->
     <footer class="footer mt-auto py-4 bg-dark text-white custom-footer">
         <div class="container">
             <div class="row">
@@ -199,7 +191,6 @@
         const leaveGameContainer = document.getElementById('leave-game-container');
         const timerProgress = document.getElementById('timer-progress');
         const waitingForAnswers = document.querySelector('.waiting-for-answers');
-        const waitingText = document.getElementById('waiting-text');
 
         document.addEventListener('DOMContentLoaded', function() {
             const storedGameId = localStorage.getItem('gameId');
@@ -254,7 +245,10 @@
             socket.on('game_started', function(data) { startGame(data); });
             socket.on('question_ready', function(data) { showQuestion(data); });
             socket.on('player_answered', function(data) { playerAnswered(data.username); });
-            socket.on('round_results', function(data) { showResults(data); });
+            socket.on('round_results', function(data) { 
+                console.log('Received round_results:', data);
+                showResults(data); 
+            });
             socket.on('game_ended', function(data) { endGame(data); });
             socket.on('random_topic_selected', function(data) {
                 document.getElementById('topic-input').value = data.topic;
@@ -320,7 +314,7 @@
 
             socket.on('player_disconnected', function(data) {
                 console.log(`${data.username} disconnected`);
-                updatePlayerList(document.getElementById('player-list').children.map(li => li.textContent.split(' ')[1]), player_emojis);
+                updatePlayerList([...document.getElementById('player-list').children].map(li => li.textContent.split(' ')[1]), player_emojis);
             });
         }
 
@@ -350,7 +344,7 @@
                 loadingDiv.id = 'loading-question';
                 loadingDiv.className = 'text-center my-5';
                 loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
-                    document.querySelector('.card-body').appendChild(loadingDiv);
+                document.querySelector('.card-body').appendChild(loadingDiv);
             });
             document.getElementById('option-a').addEventListener('click', function() { 
                 selectAnswer('A'); 
@@ -370,15 +364,16 @@
             });
             document.getElementById('submit-answer-btn').addEventListener('click', function() {
                 if (selectedAnswer) {
+                    console.log(`Submitting answer ${selectedAnswer} for ${username} in game ${gameId}`);
                     socket.emit('submit_answer', { game_id: gameId, username: username, answer: selectedAnswer });
                     window.playSubmitSound();
                     disableAnswerButtons();
                     document.getElementById('submit-answer-btn').disabled = true;
-                    // Show waiting message only if there are multiple players
-                    if (document.getElementById('player-list').childElementCount > 1) {
+                    const playerCount = document.getElementById('player-list').childElementCount;
+                    if (playerCount > 1) {
                         waitingForAnswers.style.display = 'block';
                     } else {
-                        waitingForAnswers.style.display = 'none'; // Hide for single player
+                        waitingForAnswers.style.display = 'none';
                     }
                 }
             });
@@ -439,6 +434,7 @@
         }
 
         function showQuestion(data) {
+            console.log('Showing question:', data);
             const loadingEl = document.getElementById('loading-question');
             if (loadingEl) loadingEl.remove();
             const waitingEl = document.getElementById('waiting-for-topic');
@@ -474,10 +470,10 @@
                 timerProgress.style.width = `${(timeLeft / 30) * 100}%`;
                 if (timeLeft <= 0) {
                     clearInterval(timerInterval);
-                    if (selectedAnswer) {
-                        document.getElementById('submit-answer-btn').click();
-                    } else {
+                    console.log('Timer expired');
+                    if (!selectedAnswer) {
                         socket.emit('submit_answer', { game_id: gameId, username: username, answer: null });
+                        console.log('Submitted null answer due to timeout');
                     }
                 }
             }, 1000);
@@ -485,7 +481,7 @@
 
         function playerAnswered(playerName) {
             const playerCount = document.getElementById('player-list').childElementCount;
-            if (playerCount > 1) { // Only update waiting UI for multiplayer
+            if (playerCount > 1) {
                 answeredPlayers.add(playerName);
                 const answeredPlayersList = document.getElementById('answered-players');
                 answeredPlayersList.innerHTML = '';
@@ -501,9 +497,10 @@
         }
 
         function showResults(data) {
-            clearInterval(timerInterval); // Stop timer immediately when results are received
+            console.log('Showing results:', data);
+            clearInterval(timerInterval);
             questionDisplay.style.display = 'none';
-            waitingForAnswers.style.display = 'none'; // Ensure waiting UI is hidden
+            waitingForAnswers.style.display = 'none';
             resultsDisplay.style.display = 'block';
             window.playRoundEndSound();
             document.getElementById('correct-answer').textContent = data.correct_answer;
@@ -530,7 +527,8 @@
         }
 
         function endGame(data) {
-            clearInterval(timerInterval); // Stop timer if game ends
+            console.log('Game ended:', data);
+            clearInterval(timerInterval);
             questionDisplay.style.display = 'none';
             resultsDisplay.style.display = 'none';
             localStorage.removeItem('gameId');
@@ -551,6 +549,7 @@
         }
 
         function startNextRoundCountdown(nextPlayer) {
+            console.log(`Starting next round countdown for ${nextPlayer}`);
             const progressBar = document.getElementById('next-round-progress');
             progressBar.style.width = '0%';
             progressBar.style.transition = 'width 10s linear';
@@ -573,7 +572,8 @@
         }
 
         function resetGame(data) {
-            clearInterval(timerInterval); // Stop timer if game resets
+            console.log('Resetting game:', data);
+            clearInterval(timerInterval);
             questionDisplay.style.display = 'none';
             resultsDisplay.style.display = 'none';
             scoreboard.style.display = 'none';
