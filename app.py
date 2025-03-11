@@ -307,7 +307,7 @@ def reset_game(game_id):
     logger.debug(f"Game {game_id} reset by request")
     socketio.emit('game_reset', {
         'players': [p.username for p in players],
-        'scores': {p.username: p.score for p in players],
+        'scores': {p.username: p.score for p in players},
         'player_emojis': {p.username: p.emoji for p in players}
     }, to=game_id)
     
