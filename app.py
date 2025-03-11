@@ -325,7 +325,7 @@ def get_trivia_question(topic):
     - Provide four multiple-choice options: one correct answer and three plausible but incorrect distractors. At least one of these should be very plausible. 
     - Do not repeat, hint at, or include any part of the answer within the question. The wording should not make the correct answer obvious.
     - Ensure the question is broad enough that an average person might reasonably know or guess it if it is super specific.
-    - Ensure the "{topic}" is not the answer to the question. 
+    - Ensure the "{topic}" is not the Wanswer to the question. 
     - The wording should feel natural and match the style of a well-crafted trivia question.
     - Keep the question modern and widely recognizable unless the topic requires historical context or are super specific topics. 
     - Return your response strictly in the following JSON format, with no additional text outside the JSON:
@@ -441,7 +441,7 @@ def handle_start_game(data):
             emit('game_started', {
                 'current_player': current_player.username,
                 'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
+                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
                 'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
             }, to=game_id)
         else:
@@ -492,52 +492,63 @@ def handle_select_topic(data):
 
         emit('error', {'message': "Couldn't generate a unique question. Try another topic."}, to=game_id)
 
+def process_round_results(game_id):
+    game = Game.query.filter_by(id=game_id).first()
+    if not game or game.status != 'in_progress':
+        return
+    
+    active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
+    correct_answer = game.current_question['answer']
+    correct_players = [p for p in active_players if Answer.query.filter_by(game_id=game_id, player_id=p.id).first().answer == correct_answer]
+    
+    for p in correct_players:
+        p.score += 1
+    db.session.commit()
+
+    max_score = max([p.score for p in Player.query.filter_by(game_id=game_id).all()] + [0])
+    if max_score >= 10:
+        emit('game_ended', {
+            'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
+            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
+        }, to=game_id)
+        return True
+
+    next_player = get_next_active_player(game_id)
+    if next_player:
+        emit('round_results', {
+            'correct_answer': correct_answer,
+            'explanation': game.current_question['explanation'],
+            'player_answers': {p.username: a.answer for p, a in [(p, Answer.query.filter_by(game_id=game_id, player_id=p.id).first()) for p in Player.query.filter_by(game_id=game_id).all()]},
+            'correct_players': [p.username for p in correct_players],
+            'next_player': next_player.username,
+            'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
+            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
+        }, to=game_id)
+        # Clear answers for the next round
+        db.session.query(Answer).filter_by(game_id=game_id).delete()
+        db.session.commit()
+        return False
+    else:
+        emit('game_paused', {'message': 'No active players remaining'}, to=game_id)
+        return True
+
 def question_timer(game_id):
     import time
     time.sleep(30)  # 30-second timeout
-    game = Game.query.filter_by(id=game_id).first()
-    if game and game.status == 'in_progress':
-        active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
-        # Skip timer logic if only one player and they’ve submitted
-        if len(active_players) == 1 and Answer.query.filter_by(game_id=game_id).count() == 1:
-            return  # Handled in submit_answer
-
-        for player in active_players:
-            if not Answer.query.filter_by(game_id=game_id, player_id=player.id).first():
-                new_answer = Answer(game_id=game_id, player_id=player.id, answer=None)
-                db.session.add(new_answer)
-        db.session.commit()
-
-        correct_answer = game.current_question['answer']
-        correct_players = [p for p in active_players if Answer.query.filter_by(game_id=game_id, player_id=p.id).first().answer == correct_answer]
-        for p in correct_players:
-            p.score += 1
-        db.session.commit()
-
-        max_score = max([p.score for p in Player.query.filter_by(game_id=game_id).all()] + [0])
-        if max_score >= 10:
-            emit('game_ended', {
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
-            }, to=game_id)
-            return
-        
-        next_player = get_next_active_player(game_id)
-        if next_player:
-            emit('round_results', {
-                'correct_answer': correct_answer,
-                'explanation': game.current_question['explanation'],
-                'player_answers': {p.username: a.answer for p, a in [(p, Answer.query.filter_by(game_id=game_id, player_id=p.id).first()) for p in Player.query.filter_by(game_id=game_id).all()]},
-                'correct_players': [p.username for p in correct_players],
-                'next_player': next_player.username,
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
-            }, to=game_id)
-            # Clear answers for the next round
-            db.session.query(Answer).filter_by(game_id=game_id).delete()
-            db.session.commit()
-        else:
-            emit('game_paused', {'message': 'No active players remaining'}, to=game_id)
+    with app.app_context():
+        game = Game.query.filter_by(id=game_id).first()
+        if game and game.status == 'in_progress':
+            active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
+            num_answers = Answer.query.filter_by(game_id=game_id).count()
+            
+            # Only process if not all players have answered yet
+            if num_answers < len(active_players):
+                for player in active_players:
+                    if not Answer.query.filter_by(game_id=game_id, player_id=player.id).first():
+                        new_answer = Answer(game_id=game_id, player_id=player.id, answer=None)
+                        db.session.add(new_answer)
+                db.session.commit()
+                process_round_results(game_id)
 
 @socketio.on('submit_answer')
 def handle_submit_answer(data):
@@ -572,70 +583,9 @@ def handle_submit_answer(data):
     active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
     num_answers = Answer.query.filter_by(game_id=game_id).count()
 
-    if len(active_players) == 1:
-        # Single-player mode: Immediately process results
-        correct_answer = game.current_question['answer']
-        correct_players = [p for p in active_players if Answer.query.filter_by(game_id=game_id, player_id=p.id).first().answer == correct_answer]
-        
-        for p in correct_players:
-            p.score += 1
-        db.session.commit()
-
-        max_score = max([p.score for p in Player.query.filter_by(game_id=game_id).all()] + [0])
-        if max_score >= 10:
-            emit('game_ended', {
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
-            }, to=game_id)
-            return
-
-        next_player = get_next_active_player(game_id)
-        if next_player:
-            emit('round_results', {
-                'correct_answer': correct_answer,
-                'explanation': game.current_question['explanation'],
-                'player_answers': {p.username: a.answer for p, a in [(p, Answer.query.filter_by(game_id=game_id, player_id=p.id).first()) for p in Player.query.filter_by(game_id=game_id).all()]},
-                'correct_players': [p.username for p in correct_players],
-                'next_player': next_player.username,
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
-            }, to=game_id)
-            # Clear answers for the next round
-            db.session.query(Answer).filter_by(game_id=game_id).delete()
-            db.session.commit()
-    elif num_answers == len(active_players):
-        # Multiplayer mode: All players have answered
-        correct_answer = game.current_question['answer']
-        correct_players = [p for p in active_players if Answer.query.filter_by(game_id=game_id, player_id=p.id).first().answer == correct_answer]
-        
-        for p in correct_players:
-            p.score += 1
-        db.session.commit()
-
-        max_score = max([p.score for p in Player.query.filter_by(game_id=game_id).all()] + [0])
-        if max_score >= 10:
-            emit('game_ended', {
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
-            }, to=game_id)
-            return
-
-        next_player = get_next_active_player(game_id)
-        if next_player:
-            emit('round_results', {
-                'correct_answer': correct_answer,
-                'explanation': game.current_question['explanation'],
-                'player_answers': {p.username: a.answer for p, a in [(p, Answer.query.filter_by(game_id=game_id, player_id=p.id).first()) for p in Player.query.filter_by(game_id=game_id).all()]},
-                'correct_players': [p.username for p in correct_players],
-                'next_player': next_player.username,
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
-            }, to=game_id)
-            # Clear answers for the next round
-            db.session.query(Answer).filter_by(game_id=game_id).delete()
-            db.session.commit()
-        else:
-            emit('game_paused', {'message': 'No active players remaining'}, to=game_id)
+    # If all active players have answered, process results immediately
+    if num_answers == len(active_players):
+        process_round_results(game_id)
 
 @socketio.on('disconnect')
 def handle_disconnect():
