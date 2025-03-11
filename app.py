@@ -75,24 +75,25 @@ with app.app_context():
 
 socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
 
-# Background task to clean up inactive games (unchanged)
+# Background task to clean up inactive games
 def cleanup_inactive_games():
     while True:
         with app.app_context():
-            try:
-                now = datetime.utcnow()
-                inactive_threshold = now - timedelta(minutes=2)
-                inactive_games = Game.query.filter(Game.last_activity < inactive_threshold).all()
-                for game in inactive_games:
-                    players = Player.query.filter_by(game_id=game.id).all()
-                    for player in players:
-                        player.disconnected = True
-                    db.session.delete(game)
-                    logger.info(f"Deleted inactive game {game.id} due to 2 minutes of inactivity")
-                db.session.commit()
-            except Exception as e:
-                logger.error(f"Error in cleanup_inactive_games: {str(e)}")
-                db.session.rollback()
+            with db.session.no_autoflush:  # Prevent premature autoflush
+                try:
+                    now = datetime.utcnow()
+                    inactive_threshold = now - timedelta(minutes=2)
+                    inactive_games = Game.query.filter(Game.last_activity < inactive_threshold).all()
+                    for game in inactive_games:
+                        players = Player.query.filter_by(game_id=game.id).all()
+                        for player in players:
+                            player.disconnected = True
+                        db.session.delete(game)
+                        logger.info(f"Deleted inactive game {game.id} due to 2 minutes of inactivity")
+                    db.session.commit()
+                except Exception as e:
+                    logger.error(f"Error in cleanup_inactive_games: {str(e)}")
+                    db.session.rollback()
         socketio.sleep(60)
 
 socketio.start_background_task(cleanup_inactive_games)
@@ -437,6 +438,9 @@ def process_round_results(game_id):
     correct_players = []
     
     for player in active_players:
+        if player.id is None:
+            logger.error(f"Player {player.username} in game {game_id} has no ID")
+            continue
         answer = Answer.query.filter_by(game_id=game_id, player_id=player.id).first()
         player_answers[player.username] = answer.answer if answer else None
         if player_answers[player.username] == correct_answer:
@@ -501,6 +505,9 @@ def question_timer(game_id):
             logger.debug(f"Timer expired for game {game_id}. Active players: {len(active_players)}, Answers: {num_answers}")
             
             for player in active_players:
+                if player.id is None:
+                    logger.error(f"Player {player.username} in game {game_id} has no ID")
+                    continue
                 if not Answer.query.filter_by(game_id=game_id, player_id=player.id).first():
                     new_answer = Answer(game_id=game_id, player_id=player.id, answer=None)
                     db.session.add(new_answer)
@@ -508,14 +515,13 @@ def question_timer(game_id):
             
             try:
                 db.session.commit()
+                logger.debug(f"Committed forced answers for game {game_id}")
             except Exception as e:
                 logger.error(f"Database commit failed in question_timer: {str(e)}")
                 db.session.rollback()
                 return
             
-            # Process results immediately for single-player or when all have answered
-            if num_answers < len(active_players) or len(active_players) == 1:
-                process_round_results(game_id)
+            process_round_results(game_id)
 
 @socketio.on('submit_answer')
 def handle_submit_answer(data):
@@ -529,6 +535,12 @@ def handle_submit_answer(data):
     player = Player.query.filter_by(game_id=game_id, username=username).first()
     if not (game and player and game.status == 'in_progress' and game.current_question):
         logger.error(f"Invalid submit_answer: game {game_id}, player {username}, status {game.status if game else 'None'}")
+        emit('error', {'message': 'Invalid game state'}, to=game_id)
+        return
+    
+    if player.id is None:
+        logger.error(f"Player {username} in game {game_id} has no ID")
+        emit('error', {'message': 'Player data error'}, to=game_id)
         return
     
     time_elapsed = datetime.utcnow() - game.question_start_time
@@ -555,6 +567,7 @@ def handle_submit_answer(data):
     except Exception as e:
         logger.error(f"Database commit failed in submit_answer: {str(e)}")
         db.session.rollback()
+        emit('error', {'message': 'Database error during answer submission'}, to=game_id)
         return
 
     emit('player_answered', {'username': username}, to=game_id)
@@ -563,7 +576,6 @@ def handle_submit_answer(data):
     num_answers = Answer.query.filter_by(game_id=game_id).count()
     logger.debug(f"Post-submit: Game {game_id}, Active players: {len(active_players)}, Answers: {num_answers}")
     
-    # Process results immediately for single-player or when all active players have answered
     if len(active_players) == 1 or num_answers == len(active_players):
         process_round_results(game_id)
 
