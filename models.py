@@ -14,6 +14,7 @@ class Game(db.Model):
     question_start_time = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=db.func.now())
     last_activity = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())  # Track last activity
+    current_question = db.Column(db.JSON, nullable=True)  # Added to store current question as JSON
 
     players = db.relationship('Player', backref='game', lazy=True, cascade="all, delete-orphan")
     questions_asked = db.relationship('Question', backref='game', lazy=True, cascade="all, delete-orphan")
