@@ -22,13 +22,66 @@ logger = logging.getLogger(__name__)
 # List of random trivia topics
 RANDOM_TOPICS = [
     "Famous movie quotes from the 80s", "Inventions everyone uses", "Major battles in world history", "Action movie stunts of the 90s", "Inventions that changed daily life",
-    # ... (keep the rest of the RANDOM_TOPICS list as in the original)
+    "Ancient Egyptian pyramids", "Greek mythology stories", "Unusual animal facts", "NASA moon missions", "Science fiction movie classics",
+    "Popular beer brands", "Iconic landmarks everyone knows", "Olympic gold medal moments", "Netflix hit shows", "Catchphrases from classic films",
+    "Lost cities in movies", "Marvel superhero movies", "Famous graffiti tags", "AI in everyday tech", "Wild parties in history",
+    "Pets of US presidents", "Fashion trends of the 2000s", "Dark origins of nursery rhymes", "Broadway musical hits", "Medical breakthroughs we all know",
+    "Viking warrior tales", "Legendary video game heroes", "Cool tech gadgets", "Sports team mascot stories", "Secrets in famous paintings",
+    "Sitcoms with great theme songs", "Music festival moments", "Superstitions we all know", "Weird habits of world leaders", "Horror movie monsters",
+    "Guitar riffs from the 70s", "Pirate adventure stories", "Renaissance artist legends", "Time travel in blockbuster movies", "Famous bank heists",
+    "Car chases in action films", "Zombie movie rules", "Pop art everyone recognizes", "Disco hits of the 70s", "Political scandals everyone heard about",
+    "Nicknames of big cities", "Winter holiday traditions", "Breakdance moves we’ve seen", "Board games everyone plays", "Street art in famous cities",
+    "Haunted houses in movies", "Plot twists in popular films", "Women who shaped tech", "World War II spy stories", "Game show funny moments",
+    "Famous duos on TV", "Con artists in the news", "Failed gadgets from the 90s", "Myths about lost islands", "Life on space stations",
+    "Languages we’ve heard of", "Tattoo trends today", "Underdog sports wins", "Creatures in the ocean", "Beaches with famous stories",
+    "Fashion fads by decade", "Explorers everyone knows", "Wild West cowboy tales", "Alien invasion movies", "Music genres we love",
+    "Kings and queens of Africa", "Crazy war stories", "Habits of tech billionaires", "Climate change facts we know", "Ancient sports games",
+    "Songs from the 60s protests", "Snacks from the 90s", "Sea monster myths", "Conspiracy theories we’ve heard", "Science facts from school",
+    "Treaties that ended wars", "Cool stuff at world fairs", "Hollywood scandals of the 50s", "Math tricks we learned", "Stand-up comedy stars",
+    "Weird paintings we know", "UFO stories in the news", "Silk Road treasures", "Chinese dynasty tales", "Egyptian mummy facts",
+    "Music beats we recognize", "Animals we thought were gone", "Speeches we’ve heard", "Viral dances online", "Cult TV show moments",
+    "Bad girls in old movies", "Rock band breakup drama", "Hip-hop fights of the 90s", "Fashion show oops moments", "Sunken ship stories",
+    "Volcano eruptions we know", "Ballet dances we’ve seen", "Slasher movie deaths", "Cyber worlds in movies", "City gardening trends",
+    "Dictators’ funny outfits", "Nobel Prize winners we know", "Classical music we’ve heard", "Weird ideas we’ve debated", "Cold War spy tricks",
+    "Moon landing fun facts", "Famous bridges we’ve crossed", "Boy band songs of the 90s", "Meditation tips we’ve tried", "Roller coaster records",
+    "Shipwrecks in movies", "Secret hideouts in history", "Video game high scores", "Chocolate candy history", "Courtroom scenes in TV",
+    "Dishes by famous chefs", "Epic sports comebacks", "Toys from the 80s", "Treasure hunt legends", "Urban legends we tell",
+    "Wine types we’ve tasted", "Space junk we’ve heard about", "Medieval castle tales", "Protest signs we’ve seen", "Internet memes we love",
+    "Rollerblading in the 90s", "Movie soundtrack hits", "Monster sightings in lore", "Celebrity breakup gossip", "Ancient Olympic games",
+    "Fast food menu hacks", "Victorian ghost stories", "Whistleblowers in the news", "Arcade game classics", "Weird laws we laugh at",
+    "Books banned in school", "Extreme weather we’ve seen", "Emoji meanings we use", "Magicians we’ve watched", "Cursed movie rumors",
+    "Scientists we’ve heard of", "Beauty trends we’ve tried", "Plane crash stories", "Comedy teams we love", "Lost movies found again",
+    "Soda brands we drink", "Daredevil stunts on TV", "Secret clubs we’ve heard of", "Album covers we know", "Roller derby fun facts",
+    "Book rivalries we’ve read", "Retro fashion we’ve worn", "Bank robbery stories", "Popcorn flavors we’ve tried", "TV shows that got canceled",
+    "Recipes from grandma", "Cartoon voices we know", "Skateboarding tricks we’ve seen", "Missing person mysteries", "Train robbery legends",
+    "VR games we’ve played", "Theme park ride flops", "Bubble gum brands", "Spy tricks in movies", "Sibling fights in history",
+    "Pinball game themes", "Courtroom TV moments", "Firework show stories", "Celebrity pet names", "Yo-yo tricks we’ve tried",
+    "Movie car chase scenes", "Hot sauce brands", "Prison escape stories", "Kite flying fun", "Stunt doubles in films",
+    "Ice cream flavors we love", "Survival shows we watch", "Graffiti tags we’ve seen", "Monster truck crashes", "Jigsaw puzzle fun",
+    "Celebrity nicknames we know", "Karaoke songs we sing", "TV cliffhanger endings", "Glow stick party tricks", "Circus acts we’ve seen",
+    "Slapstick comedy gags", "Reality TV meltdowns", "Breakdance battles on TV", "Celebrity tattoo stories", "Snow globe scenes",
+    "Movie bloopers we’ve laughed at", "Fortune cookie sayings", "TV theme song hits", "Hacky sack games", "Stunt fails on video",
+    "Rubber duck designs", "Celebrity pranks we’ve seen", "Yo-yo moves we know", "TV spin-offs we’ve watched", "Frisbee games we’ve played",
+    "Movie props we recognize", "Trick-or-treat stories", "Celebrity feuds in the news", "Glow-in-the-dark toys", "TV reboots we’ve seen",
+    "Jump rope rhymes", "Movie poster art", "Silly string pranks", "Celebrity impersonators on TV", "Dodgeball games we’ve played",
+    "TV crossover episodes", "Water balloon fight stories", "Movie trailer lines we know", "Pogo stick fun", "Celebrity book deals",
+    "Hacky sack tricks we’ve tried", "Movie set mishaps", "Slinky toy fun", "TV award show moments", "Hula hoop games",
+    "Celebrity cameos we’ve spotted", "Paper airplane games", "Movie opening scenes we love", "Yo-yo contest stories", "TV finale surprises",
+    "Bubble wrap popping fun", "Celebrity roast jokes", "Kite surfing crashes", "Movie sequel flops", "Bouncy ball games",
+    "TV pilot episodes we’ve seen", "Glow stick rave stories", "Movie villain deaths", "Hopscotch games we played", "Celebrity scandals we know",
+    "Taffy candy flavors", "Movie monster looks", "Limbo dance parties", "TV guest stars we love", "Pinata party stories",
+    "Movie dance scene hits", "Twister game nights", "Celebrity arrest headlines", "Balloon animal fun", "TV show locations we know",
+    "Tug-of-war games", "Movie fight scenes we love", "Jacks game tricks", "Celebrity apology clips", "Yo-yo fad stories",
+    "Movie costumes we recognize", "Hoppy taw fun", "TV show drama moments", "Fidget spinner crazes", "Movie taglines we quote",
+    "Kite fighting stories", "Celebrity wedding gossip", "Silly putty play", "TV catchphrases we say", "Water gun fight tales",
+    "Movie chase music hits", "Hacky sack champs", "Celebrity ads we’ve seen", "Bubble blowing fun", "TV show props we know",
+    "Jump rope games we played", "Movie cliffhanger scenes", "Dodgeball rule twists", "Celebrity lawsuit news", "Slinky race fun"
 ]
 
 # List of emojis for player icons
 PLAYER_EMOJIS = [
     "😄", "😂", "😎", "🤓", "🎉", "🚀", "🌟", "🍕", "🎸", "🎮",
-    # ... (keep the rest of the PLAYER_EMOJIS list as in the original)
+    "🏆", "💡", "🌍", "🎨", "📚", "🔥", "💎", "🐱", "🐶", "🌸"
 ]
 
 def generate_game_id():
@@ -78,33 +131,84 @@ with app.app_context():
 
 socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
 
+# Background task to clean up inactive games
+def cleanup_inactive_games():
+    while True:
+        with app.app_context():
+            try:
+                now = datetime.utcnow()
+                inactive_threshold = now - timedelta(minutes=2)
+                inactive_games = Game.query.filter(Game.last_activity < inactive_threshold).all()
+                for game in inactive_games:
+                    # Mark all players as disconnected
+                    players = Player.query.filter_by(game_id=game.id).all()
+                    for player in players:
+                        player.disconnected = True
+                    # Delete the game (cascading deletes will remove players, questions, answers)
+                    db.session.delete(game)
+                    logger.info(f"Deleted inactive game {game.id} due to 2 minutes of inactivity")
+                db.session.commit()
+            except Exception as e:
+                logger.error(f"Error in cleanup_inactive_games: {str(e)}")
+                db.session.rollback()
+        socketio.sleep(60)  # Check every minute
+
+# Start the cleanup task
+socketio.start_background_task(cleanup_inactive_games)
+
 @app.route('/')
 def welcome():
+    # Update last activity for any interaction
+    with app.app_context():
+        game_id = session.get('game_id')
+        if game_id:
+            game = Game.query.filter_by(id=game_id).first()
+            if game:
+                game.last_activity = datetime.utcnow()
+                db.session.commit()
     return render_template('welcome.html')
 
 @app.route('/play')
 def play():
+    # Update last activity for any interaction
+    with app.app_context():
+        game_id = session.get('game_id')
+        if game_id:
+            game = Game.query.filter_by(id=game_id).first()
+            if game:
+                game.last_activity = datetime.utcnow()
+                db.session.commit()
     return render_template('index.html')
 
 @app.route('/create_game', methods=['POST'])
 def create_game():
     username = request.form.get('username')
     if not username:
-        return redirect(url_for('play'))
-    
+        return render_template('index.html', error="Username is required")
+
+    # Check if the username is already in use in this game session
     game_id = generate_game_id()
-    new_game = Game(id=game_id, host=username, status='waiting')
-    db.session.add(new_game)
-    db.session.flush()  # Get the game ID assigned by the database
+    existing_player = Player.query.filter_by(game_id=game_id, username=username).first()
+    if existing_player:
+        return render_template('index.html', error="Username already taken in this game session. Please choose a different name.")
 
-    new_player = Player(game_id=game_id, username=username, score=0, emoji=random.choice(PLAYER_EMOJIS), disconnected=False)
-    db.session.add(new_player)
-    db.session.commit()
+    try:
+        new_game = Game(id=game_id, host=username, status='waiting')
+        db.session.add(new_game)
+        db.session.flush()  # Get the game ID assigned by the database
 
-    session['game_id'] = game_id
-    session['username'] = username
-    
-    return redirect(url_for('game', game_id=game_id))
+        new_player = Player(game_id=game_id, username=username, score=0, emoji=random.choice(PLAYER_EMOJIS), disconnected=False)
+        db.session.add(new_player)
+        db.session.commit()
+
+        session['game_id'] = game_id
+        session['username'] = username
+        
+        return redirect(url_for('game', game_id=game_id))
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logger.error(f"Error creating game: {str(e)}")
+        return render_template('index.html', error="An error occurred while creating the game. Please try again.")
 
 @app.route('/join_game', methods=['POST'])
 def join_game():
@@ -112,12 +216,12 @@ def join_game():
     game_id = request.form.get('game_id')
     
     if not username or not game_id:
-        return redirect(url_for('play'))
-    
+        return render_template('index.html', error="Username and Game ID are required")
+
     game = Game.query.filter_by(id=game_id).first()
     if not game:
-        return "Game not found", 404
-    
+        return render_template('index.html', error="Game not found")
+
     # Allow rejoining only if the player was already in the game
     existing_player = Player.query.filter_by(game_id=game_id, username=username).first()
     if existing_player:
@@ -129,18 +233,27 @@ def join_game():
     
     # Block new players if game is in progress or full
     if game.status != 'waiting' or Player.query.filter_by(game_id=game_id).count() >= 10:
-        return "Game already in progress or full", 403
-    
-    # Add new player during waiting phase
-    available_emojis = [e for e in PLAYER_EMOJIS if e not in [p.emoji for p in Player.query.filter_by(game_id=game_id).all()]]
-    new_player = Player(game_id=game_id, username=username, score=0, emoji=random.choice(available_emojis) if available_emojis else random.choice(PLAYER_EMOJIS), disconnected=False)
-    db.session.add(new_player)
-    db.session.commit()
+        return render_template('index.html', error="Game already in progress or full")
 
-    session['game_id'] = game_id
-    session['username'] = username
-    
-    return redirect(url_for('game', game_id=game_id))
+    # Check if the username is already in use in this game session
+    if Player.query.filter_by(game_id=game_id, username=username).first():
+        return render_template('index.html', error="Username already taken in this game session. Please choose a different name.")
+
+    try:
+        available_emojis = [e for e in PLAYER_EMOJIS if e not in [p.emoji for p in Player.query.filter_by(game_id=game_id).all()]]
+        new_player = Player(game_id=game_id, username=username, score=0, emoji=random.choice(available_emojis) if available_emojis else random.choice(PLAYER_EMOJIS), disconnected=False)
+        db.session.add(new_player)
+        game.last_activity = datetime.utcnow()  # Update last activity
+        db.session.commit()
+
+        session['game_id'] = game_id
+        session['username'] = username
+        
+        return redirect(url_for('game', game_id=game_id))
+    except SQLAlchemyError as e:
+        db.session.rollback()
+        logger.error(f"Error joining game: {str(e)}")
+        return render_template('index.html', error="An error occurred while joining the game. Please try again.")
 
 @app.route('/game/<game_id>')
 def game(game_id):
@@ -152,6 +265,10 @@ def game(game_id):
     if not username or not Player.query.filter_by(game_id=game_id, username=username).first():
         return redirect(url_for('welcome'))
     
+    # Update last activity for any interaction
+    game.last_activity = datetime.utcnow()
+    db.session.commit()
+
     return render_template('game.html', game_id=game_id, username=username, is_host=(username == game.host))
 
 @app.route('/final_scoreboard/<game_id>')
@@ -162,6 +279,11 @@ def final_scoreboard(game_id):
     players = Player.query.filter_by(game_id=game_id).all()
     player_scores = {p.username: p.score for p in players}
     player_emojis = {p.username: p.emoji for p in players}
+
+    # Update last activity for any interaction
+    game.last_activity = datetime.utcnow()
+    db.session.commit()
+
     return render_template('final_scoreboard.html', game_id=game_id, scores=player_scores, player_emojis=player_emojis)
 
 @app.route('/reset_game/<game_id>', methods=['POST'])
@@ -173,6 +295,7 @@ def reset_game(game_id):
     game.status = 'waiting'
     game.current_player_index = 0
     game.question_start_time = None
+    game.last_activity = datetime.utcnow()  # Update last activity
     db.session.query(Question).filter_by(game_id=game_id).delete()
     db.session.query(Answer).filter_by(game_id=game_id).delete()
     players = Player.query.filter_by(game_id=game_id).all()
@@ -184,7 +307,7 @@ def reset_game(game_id):
     logger.debug(f"Game {game_id} reset by request")
     socketio.emit('game_reset', {
         'players': [p.username for p in players],
-        'scores': {p.username: p.score for p in players},
+        'scores': {p.username: p.score for p in players],
         'player_emojis': {p.username: p.emoji for p in players}
     }, to=game_id)
     
@@ -247,6 +370,7 @@ def get_next_active_player(game_id):
         next_player = players[current_index]
         if not next_player.disconnected:
             game.current_player_index = current_index
+            game.last_activity = datetime.utcnow()  # Update last activity
             db.session.commit()
             return next_player
     return None
@@ -266,23 +390,30 @@ def handle_join_game_room(data):
         if player:
             # Player is reconnecting
             player.disconnected = False
+            game.last_activity = datetime.utcnow()  # Update last activity
             db.session.commit()
             join_room(game_id)
             logger.debug(f"Player {username} rejoined room {game_id}")
             emit('player_rejoined', {
                 'username': username,
                 'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
+                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
+                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()],
                 'status': game.status,
                 'current_player': Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first().username if game.status == 'in_progress' else None,
                 'current_question': None  # To be handled separately if needed
             }, to=game_id)
         elif game.status == 'waiting' and Player.query.filter_by(game_id=game_id).count() < 10:
             # New player joining in waiting phase
+            # Check for username conflict
+            if Player.query.filter_by(game_id=game_id, username=username).first():
+                emit('error', {'message': "Username already taken in this game session. Please choose a different name."}, to=game_id)
+                return
+
             available_emojis = [e for e in PLAYER_EMOJIS if e not in [p.emoji for p in Player.query.filter_by(game_id=game_id).all()]]
             new_player = Player(game_id=game_id, username=username, score=0, emoji=random.choice(available_emojis) if available_emojis else random.choice(PLAYER_EMOJIS), disconnected=False)
             db.session.add(new_player)
+            game.last_activity = datetime.utcnow()  # Update last activity
             db.session.commit()
             join_room(game_id)
             emit('player_joined', {
@@ -300,6 +431,7 @@ def handle_start_game(data):
         game = Game.query.filter_by(id=game_id).first()
         if game and username == game.host and game.status == 'waiting':
             game.status = 'in_progress'
+            game.last_activity = datetime.utcnow()  # Update last activity
             current_player = Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first()
             if current_player.disconnected:
                 current_player = get_next_active_player(game_id)
@@ -309,7 +441,7 @@ def handle_start_game(data):
             emit('game_started', {
                 'current_player': current_player.username,
                 'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
+                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
                 'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
             }, to=game_id)
         else:
@@ -346,7 +478,8 @@ def handle_select_topic(data):
                 new_question = Question(game_id=game_id, question_text=question_text, answer_text=answer_text)
                 db.session.add(new_question)
                 game.current_question = question_data  # Store as JSON or restructure as needed
-                game.question_start_time = datetime.now()
+                game.question_start_time = datetime.utcnow()
+                game.last_activity = datetime.utcnow()  # Update last activity
                 db.session.commit()
 
                 emit('question_ready', {
@@ -430,6 +563,7 @@ def handle_submit_answer(data):
         else:
             new_answer = Answer(game_id=game_id, player_id=player.id, answer=answer)
             db.session.add(new_answer)
+        game.last_activity = datetime.utcnow()  # Update last activity
         db.session.commit()
 
         emit('player_answered', {'username': username}, to=game_id)
@@ -509,6 +643,7 @@ def handle_disconnect():
         player = Player.query.filter_by(game_id=game.id, username=username).first()
         if player:
             player.disconnected = True
+            game.last_activity = datetime.utcnow()  # Update last activity
             db.session.commit()
             emit('player_disconnected', {'username': username}, to=game.id)
             if (game.status == 'in_progress' and 
