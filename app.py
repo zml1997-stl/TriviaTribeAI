@@ -20,62 +20,68 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # List of random trivia topics
+# List of random trivia topics
 RANDOM_TOPICS = [
-    "Famous movie quotes from the 80s", "Inventions everyone uses", "Major battles in world history", "Action movie stunts of the 90s", "Inventions that changed daily life",
-    "Ancient Egyptian pyramids", "Greek mythology stories", "Unusual animal facts", "NASA moon missions", "Science fiction movie classics",
-    "Popular beer brands", "Iconic landmarks everyone knows", "Olympic gold medal moments", "Netflix hit shows", "Catchphrases from classic films",
-    "Lost cities in movies", "Marvel superhero movies", "Famous graffiti tags", "AI in everyday tech", "Wild parties in history",
-    "Pets of US presidents", "Fashion trends of the 2000s", "Dark origins of nursery rhymes", "Broadway musical hits", "Medical breakthroughs we all know",
-    "Viking warrior tales", "Legendary video game heroes", "Cool tech gadgets", "Sports team mascot stories", "Secrets in famous paintings",
-    "Sitcoms with great theme songs", "Music festival moments", "Superstitions we all know", "Weird habits of world leaders", "Horror movie monsters",
-    "Guitar riffs from the 70s", "Pirate adventure stories", "Renaissance artist legends", "Time travel in blockbuster movies", "Famous bank heists",
-    "Car chases in action films", "Zombie movie rules", "Pop art everyone recognizes", "Disco hits of the 70s", "Political scandals everyone heard about",
-    "Nicknames of big cities", "Winter holiday traditions", "Breakdance moves we’ve seen", "Board games everyone plays", "Street art in famous cities",
-    "Haunted houses in movies", "Plot twists in popular films", "Women who shaped tech", "World War II spy stories", "Game show funny moments",
-    "Famous duos on TV", "Con artists in the news", "Failed gadgets from the 90s", "Myths about lost islands", "Life on space stations",
-    "Languages we’ve heard of", "Tattoo trends today", "Underdog sports wins", "Creatures in the ocean", "Beaches with famous stories",
-    "Fashion fads by decade", "Explorers everyone knows", "Wild West cowboy tales", "Alien invasion movies", "Music genres we love",
-    "Kings and queens of Africa", "Crazy war stories", "Habits of tech billionaires", "Climate change facts we know", "Ancient sports games",
-    "Songs from the 60s protests", "Snacks from the 90s", "Sea monster myths", "Conspiracy theories we’ve heard", "Science facts from school",
-    "Treaties that ended wars", "Cool stuff at world fairs", "Hollywood scandals of the 50s", "Math tricks we learned", "Stand-up comedy stars",
-    "Weird paintings we know", "UFO stories in the news", "Silk Road treasures", "Chinese dynasty tales", "Egyptian mummy facts",
-    "Music beats we recognize", "Animals we thought were gone", "Speeches we’ve heard", "Viral dances online", "Cult TV show moments",
-    "Bad girls in old movies", "Rock band breakup drama", "Hip-hop fights of the 90s", "Fashion show oops moments", "Sunken ship stories",
-    "Volcano eruptions we know", "Ballet dances we’ve seen", "Slasher movie deaths", "Cyber worlds in movies", "City gardening trends",
-    "Dictators’ funny outfits", "Nobel Prize winners we know", "Classical music we’ve heard", "Weird ideas we’ve debated", "Cold War spy tricks",
-    "Moon landing fun facts", "Famous bridges we’ve crossed", "Boy band songs of the 90s", "Meditation tips we’ve tried", "Roller coaster records",
-    "Shipwrecks in movies", "Secret hideouts in history", "Video game high scores", "Chocolate candy history", "Courtroom scenes in TV",
-    "Dishes by famous chefs", "Epic sports comebacks", "Toys from the 80s", "Treasure hunt legends", "Urban legends we tell",
-    "Wine types we’ve tasted", "Space junk we’ve heard about", "Medieval castle tales", "Protest signs we’ve seen", "Internet memes we love",
-    "Rollerblading in the 90s", "Movie soundtrack hits", "Monster sightings in lore", "Celebrity breakup gossip", "Ancient Olympic games",
-    "Fast food menu hacks", "Victorian ghost stories", "Whistleblowers in the news", "Arcade game classics", "Weird laws we laugh at",
-    "Books banned in school", "Extreme weather we’ve seen", "Emoji meanings we use", "Magicians we’ve watched", "Cursed movie rumors",
-    "Scientists we’ve heard of", "Beauty trends we’ve tried", "Plane crash stories", "Comedy teams we love", "Lost movies found again",
-    "Soda brands we drink", "Daredevil stunts on TV", "Secret clubs we’ve heard of", "Album covers we know", "Roller derby fun facts",
-    "Book rivalries we’ve read", "Retro fashion we’ve worn", "Bank robbery stories", "Popcorn flavors we’ve tried", "TV shows that got canceled",
-    "Recipes from grandma", "Cartoon voices we know", "Skateboarding tricks we’ve seen", "Missing person mysteries", "Train robbery legends",
-    "VR games we’ve played", "Theme park ride flops", "Bubble gum brands", "Spy tricks in movies", "Sibling fights in history",
-    "Pinball game themes", "Courtroom TV moments", "Firework show stories", "Celebrity pet names", "Yo-yo tricks we’ve tried",
-    "Movie car chase scenes", "Hot sauce brands", "Prison escape stories", "Kite flying fun", "Stunt doubles in films",
-    "Ice cream flavors we love", "Survival shows we watch", "Graffiti tags we’ve seen", "Monster truck crashes", "Jigsaw puzzle fun",
-    "Celebrity nicknames we know", "Karaoke songs we sing", "TV cliffhanger endings", "Glow stick party tricks", "Circus acts we’ve seen",
-    "Slapstick comedy gags", "Reality TV meltdowns", "Breakdance battles on TV", "Celebrity tattoo stories", "Snow globe scenes",
-    "Movie bloopers we’ve laughed at", "Fortune cookie sayings", "TV theme song hits", "Hacky sack games", "Stunt fails on video",
-    "Rubber duck designs", "Celebrity pranks we’ve seen", "Yo-yo moves we know", "TV spin-offs we’ve watched", "Frisbee games we’ve played",
-    "Movie props we recognize", "Trick-or-treat stories", "Celebrity feuds in the news", "Glow-in-the-dark toys", "TV reboots we’ve seen",
-    "Jump rope rhymes", "Movie poster art", "Silly string pranks", "Celebrity impersonators on TV", "Dodgeball games we’ve played",
-    "TV crossover episodes", "Water balloon fight stories", "Movie trailer lines we know", "Pogo stick fun", "Celebrity book deals",
-    "Hacky sack tricks we’ve tried", "Movie set mishaps", "Slinky toy fun", "TV award show moments", "Hula hoop games",
-    "Celebrity cameos we’ve spotted", "Paper airplane games", "Movie opening scenes we love", "Yo-yo contest stories", "TV finale surprises",
-    "Bubble wrap popping fun", "Celebrity roast jokes", "Kite surfing crashes", "Movie sequel flops", "Bouncy ball games",
-    "TV pilot episodes we’ve seen", "Glow stick rave stories", "Movie villain deaths", "Hopscotch games we played", "Celebrity scandals we know",
-    "Taffy candy flavors", "Movie monster looks", "Limbo dance parties", "TV guest stars we love", "Pinata party stories",
-    "Movie dance scene hits", "Twister game nights", "Celebrity arrest headlines", "Balloon animal fun", "TV show locations we know",
-    "Tug-of-war games", "Movie fight scenes we love", "Jacks game tricks", "Celebrity apology clips", "Yo-yo fad stories",
-    "Movie costumes we recognize", "Hoppy taw fun", "TV show drama moments", "Fidget spinner crazes", "Movie taglines we quote",
-    "Kite fighting stories", "Celebrity wedding gossip", "Silly putty play", "TV catchphrases we say", "Water gun fight tales",
-    "Movie chase music hits", "Hacky sack champs", "Celebrity ads we’ve seen", "Bubble blowing fun", "TV show props we know",
-    "Jump rope games we played", "Movie cliffhanger scenes", "Dodgeball rule twists", "Celebrity lawsuit news", "Slinky race fun"
+    "3rd grade math", "Business", "2010s music", "80s nostalgia", "Famous inventions", 
+    "World history", "Mythology", "Animal kingdom", "Space exploration", "Famous authors", 
+    "Food and cuisine", "Famous landmarks", "Olympic history", "Pop culture", "Famous movie quotes", 
+    "Geography", "Superheroes", "Modern art", "Scientific discoveries", "Historical events", 
+    "US presidents", "Fashion trends", "Classic literature", "Broadway musicals", "Medical breakthroughs", 
+    "Ancient civilizations", "Video game history", "Technology innovations", "Sports trivia", "Famous paintings", 
+    "Iconic TV shows", "Music festivals", "World religions", "Presidents of other countries", "Film directors", 
+    "Musical instruments", "Historical figures", "90s cartoons", "Natural wonders", "Famous scientists", 
+    "Classic cars", "Environmental issues", "Art movements", "70s rock music", "Political scandals", 
+    "World capitals", "Winter holidays", "Dance styles", "Popular board games", "Famous photographers", 
+    "Architecture", "Classic literature adaptations", "Inventions by women", "World War II", "Famous TV hosts", 
+    "Famous duos in history", "Famous criminals", "Inventions in the 20th century", "Lost civilizations", "Space missions", 
+    "Languages", "Famous artists", "World sports tournaments", "Underwater exploration", "Famous beaches", 
+    "Political revolutions", "Famous explorers", "Wild West history", "The Renaissance", "Famous writers of the 20th century", 
+    "African history", "Historical wars", "Technology companies", "Global warming", "Ancient architecture", 
+    "Civil rights movements", "Favorite childhood snacks", "Legendary monsters and cryptids", "Historical novels", "Scientific theories", 
+    "Major historical treaties", "World fairs", "Golden Age of Hollywood", "Famous mathematicians", "Famous comedians", 
+    "Surrealist artists", "Unsolved mysteries", "World Trade history", "Chinese dynasties", "Ancient Egypt", 
+    "Music theory", "Wildlife conservation", "Famous political speeches", "Social movements", "Vintage TV shows", 
+    "Film noir", "Rock ‘n’ roll pioneers", "Hip-hop history", "Fashion designers", "Great explorers of the seas", 
+    "Major natural disasters", "Ballet history", "Horror movie icons", "Futurism", "Street art", 
+    "Political ideologies", "Nobel Prize winners", "Classical composers", "Modern philosophy", "Cold War", 
+    "World War I", "Civilizations of Mesoamerica", "Classic movie musicals", "Famous historical speeches", "The Enlightenment", 
+    "Dinosaurs", "Famous historical paintings", "Forensic science", "The American Revolution", "Inventions that changed the world", 
+    "Industrial Revolution", "Broadway legends", "Historic music genres", "Wonders of the Ancient World", "Native American history", 
+    "Prohibition", "Space telescopes", "Women in history", "Music videos", "Great scientific minds", 
+    "Early cinema", "Punk rock", "World food history", "Mythological creatures", "Comedy legends", 
+    "Early explorers", "Natural history museums", "Astronomy", "Ancient Rome", "Ancient Greece", 
+    "Invention of the airplane", "Nobel laureates in science", "Pirates", "Shakespearean plays", "Famous philosophers", 
+    "Art history", "Supernatural legends", "Circus history", "Comic book artists", "Classic literature quotes", 
+    "80s cartoons", "Famous murders", "Urban legends", "Extreme sports", "Music charts", 
+    "Historical diseases", "Fairytales and folklore", "Nobel Prize in Literature", "Victorian England", "Global protests", 
+    "The Great Depression", "Historical weapons", "Environmental movements", "Christmas traditions", "Modern dance", 
+    "Musical genres from the 60s", "Famous athletes of the 20th century", "Space technology", "African American history", "Famous female politicians", 
+    "Renaissance painters", "Gender equality movements", "Rock festivals", "History of photography", "Monarchy history", 
+    "Comic book movies", "Ancient rituals", "Steam engines", "Victorian fashion", "Nature documentaries", 
+    "World folk music", "Famous historical documents", "Classic board games", "Inventions of the 21st century", "Hidden treasures", 
+    "Ancient texts and manuscripts", "Famous food chefs", "Mid-century architecture", "Medieval kings and queens", "Famous sports teams", 
+    "US history", "Famous TV villains", "Bizarre laws around the world", "World mythologies", "Art exhibitions", 
+    "Scientific explorations", "Renaissance festivals", "Classic sci-fi literature", "Medieval knights", "International film festivals", 
+    "Music charts in the 70s", "The Silk Road", "Renaissance art", "Old Hollywood stars", "Political dynasties", 
+    "Ancient inventions", "Famous spies", "2000s fashion", "Famous libraries", "Color theory in art", 
+    "History of robotics", "Music producers", "Nobel Peace Prize winners", "Ancient philosophy", "Viking history", 
+    "Mysterious disappearances", "Famous art heists", "Ancient medicine", "Pirates of the Caribbean", "Early civilizations", 
+    "Famous historical novels", "Global economic history", "Archaeological discoveries", "Rock legends", "World capitals trivia", 
+    "Famous movie directors", "Animal migration", "History of the internet", "Famous television writers", "Famous cartoonists", 
+    "Famous philosophers of the 20th century", "Olympic athletes of all time", "Medieval architecture", "Music theory terms", "The Beatles", 
+    "Classical architecture", "Romanticism in art", "Internet culture", "2000s TV shows", "Military strategies in history", 
+    "The Great Wall of China", "Chinese philosophy", "Space exploration milestones", "History of banking", "Baroque art", 
+    "Beatles songs", "Famous space missions", "The Industrial Age", "Victorian novels", "Pop culture references", 
+    "Modern superheroes", "American authors", "90s music", "Global cities", "Early computer science", 
+    "Classic cinema icons", "First ladies of the United States", "Women in entertainment", "Famous classical operas", "The Salem witch trials", 
+    "Ancient Chinese inventions", "Nobel Prize in Peace", "Famous fashion icons", "Renaissance artists", "Jazz history", 
+    "Golden Age of Television", "Famous historical diaries", "Famous World War II generals", "90s video games", "Shakespeare's works", 
+    "Classic board game design", "History of circus performances", "Mountaineering expeditions", "Ancient Rome vs. Ancient Greece", "Famous mathematicians of history", 
+    "The evolution of the internet", "Renowned chefs and their dishes", "Black History Month trivia", "Ancient Egyptian gods", "Legendary actors and actresses", 
+    "Feminism in history", "Environmental disasters", "Music legends of the 60s", "History of the telephone", "Classic detective novels", 
+    "Ancient libraries", "Mythological heroes", "Endangered species", "World War I leaders", "The Great Fire of London", 
+    "Classic punk bands", "Gold Rush history", "The Spanish Inquisition", "History of skateboarding", "History of chocolate", 
+    "History of theater", "The art of brewing", "The history of toys and games"
 ]
 
 # List of emojis for player icons
@@ -397,8 +403,8 @@ def handle_join_game_room(data):
             emit('player_rejoined', {
                 'username': username,
                 'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
+                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
+                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()],
                 'status': game.status,
                 'current_player': Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first().username if game.status == 'in_progress' else None,
                 'current_question': None  # To be handled separately if needed
@@ -419,7 +425,7 @@ def handle_join_game_room(data):
             emit('player_joined', {
                 'username': username,
                 'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
+                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()]
             }, to=game_id)
 
 @socketio.on('start_game')
@@ -442,7 +448,7 @@ def handle_start_game(data):
                 'current_player': current_player.username,
                 'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
                 'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
+                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()]
             }, to=game_id)
         else:
             logger.warning(f"Invalid start game request for game {game_id} by {username}")
@@ -509,7 +515,7 @@ def process_round_results(game_id):
     if max_score >= 10:
         emit('game_ended', {
             'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
+            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()]
         }, to=game_id)
         return True
 
@@ -522,7 +528,7 @@ def process_round_results(game_id):
             'correct_players': [p.username for p in correct_players],
             'next_player': next_player.username,
             'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
+            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()]
         }, to=game_id)
         # Clear answers for the next round
         db.session.query(Answer).filter_by(game_id=game_id).delete()
