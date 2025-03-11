@@ -350,7 +350,7 @@
                 loadingDiv.id = 'loading-question';
                 loadingDiv.className = 'text-center my-5';
                 loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
-                document.querySelector('.card-body').appendChild(loadingDiv);
+                    document.querySelector('.card-body').appendChild(loadingDiv);
             });
             document.getElementById('option-a').addEventListener('click', function() { 
                 selectAnswer('A'); 
@@ -501,8 +501,9 @@
         }
 
         function showResults(data) {
-            clearInterval(timerInterval); // Stop timer immediately
+            clearInterval(timerInterval); // Stop timer immediately when results are received
             questionDisplay.style.display = 'none';
+            waitingForAnswers.style.display = 'none'; // Ensure waiting UI is hidden
             resultsDisplay.style.display = 'block';
             window.playRoundEndSound();
             document.getElementById('correct-answer').textContent = data.correct_answer;
@@ -529,6 +530,7 @@
         }
 
         function endGame(data) {
+            clearInterval(timerInterval); // Stop timer if game ends
             questionDisplay.style.display = 'none';
             resultsDisplay.style.display = 'none';
             localStorage.removeItem('gameId');
@@ -571,6 +573,7 @@
         }
 
         function resetGame(data) {
+            clearInterval(timerInterval); // Stop timer if game resets
             questionDisplay.style.display = 'none';
             resultsDisplay.style.display = 'none';
             scoreboard.style.display = 'none';
