@@ -85,7 +85,7 @@
                             </div>
                             
                             <div class="waiting-for-answers mt-4" style="display: none;">
-                                <p>Waiting for other players to answer...</p>
+                                <p id="waiting-text">Waiting for other players to answer...</p>
                                 <div class="progress">
                                     <div id="answer-progress" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
                                 </div>
@@ -198,6 +198,8 @@
         const scoreboard = document.getElementById('scoreboard');
         const leaveGameContainer = document.getElementById('leave-game-container');
         const timerProgress = document.getElementById('timer-progress');
+        const waitingForAnswers = document.querySelector('.waiting-for-answers');
+        const waitingText = document.getElementById('waiting-text');
 
         document.addEventListener('DOMContentLoaded', function() {
             const storedGameId = localStorage.getItem('gameId');
@@ -372,7 +374,12 @@
                     window.playSubmitSound();
                     disableAnswerButtons();
                     document.getElementById('submit-answer-btn').disabled = true;
-                    document.querySelector('.waiting-for-answers').style.display = 'block';
+                    // Show waiting message only if there are multiple players
+                    if (document.getElementById('player-list').childElementCount > 1) {
+                        waitingForAnswers.style.display = 'block';
+                    } else {
+                        waitingForAnswers.style.display = 'none'; // Hide for single player
+                    }
                 }
             });
             document.getElementById('leave-game-btn').addEventListener('click', function() {
@@ -451,7 +458,7 @@
                 button.disabled = false;
             });
             document.getElementById('submit-answer-btn').disabled = false;
-            document.querySelector('.waiting-for-answers').style.display = 'none';
+            waitingForAnswers.style.display = 'none';
             answeredPlayers.clear();
             document.getElementById('answered-players').innerHTML = '';
             document.getElementById('answer-progress').style.width = '0%';
@@ -477,21 +484,24 @@
         }
 
         function playerAnswered(playerName) {
-            answeredPlayers.add(playerName);
-            const answeredPlayersList = document.getElementById('answered-players');
-            answeredPlayersList.innerHTML = '';
-            Array.from(answeredPlayers).forEach(player => {
-                const li = document.createElement('li');
-                li.className = 'list-group-item';
-                li.innerHTML = `<span class="player-emoji">${player_emojis[player]}</span>${player}`;
-                answeredPlayersList.appendChild(li);
-            });
-            const playersCount = document.getElementById('player-list').childElementCount;
-            const progress = (answeredPlayers.size / playersCount) * 100;
-            document.getElementById('answer-progress').style.width = progress + '%';
+            const playerCount = document.getElementById('player-list').childElementCount;
+            if (playerCount > 1) { // Only update waiting UI for multiplayer
+                answeredPlayers.add(playerName);
+                const answeredPlayersList = document.getElementById('answered-players');
+                answeredPlayersList.innerHTML = '';
+                Array.from(answeredPlayers).forEach(player => {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item';
+                    li.innerHTML = `<span class="player-emoji">${player_emojis[player]}</span>${player}`;
+                    answeredPlayersList.appendChild(li);
+                });
+                const progress = (answeredPlayers.size / playerCount) * 100;
+                document.getElementById('answer-progress').style.width = progress + '%';
+            }
         }
 
         function showResults(data) {
+            clearInterval(timerInterval); // Stop timer immediately
             questionDisplay.style.display = 'none';
             resultsDisplay.style.display = 'block';
             window.playRoundEndSound();
