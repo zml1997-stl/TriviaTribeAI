@@ -13,19 +13,23 @@ class Game(db.Model):
     current_player_index = db.Column(db.Integer, nullable=False, default=0)
     question_start_time = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=db.func.now())
+    last_activity = db.Column(db.DateTime, default=db.func.now(), onupdate=db.func.now())  # Track last activity
 
-    players = db.relationship('Player', backref='game', lazy=True)
-    questions_asked = db.relationship('Question', backref='game', lazy=True)
+    players = db.relationship('Player', backref='game', lazy=True, cascade="all, delete-orphan")
+    questions_asked = db.relationship('Question', backref='game', lazy=True, cascade="all, delete-orphan")
 
 class Player(db.Model):
     __tablename__ = 'players'
 
     id = db.Column(db.Integer, primary_key=True)
     game_id = db.Column(db.String(4), db.ForeignKey('games.id'), nullable=False)
-    username = db.Column(db.String(50), nullable=False, unique=True)
+    username = db.Column(db.String(50), nullable=False)  # Removed unique=True
     score = db.Column(db.Integer, nullable=False, default=0)
     emoji = db.Column(db.String(10), nullable=False)
     disconnected = db.Column(db.Boolean, default=False)
+
+    # Add a unique constraint on (game_id, username) to ensure unique usernames within a game
+    __table_args__ = (db.UniqueConstraint('game_id', 'username', name='unique_game_username'),)
 
 class Question(db.Model):
     __tablename__ = 'questions_asked'
