@@ -441,7 +441,7 @@ def handle_start_game(data):
             emit('game_started', {
                 'current_player': current_player.username,
                 'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
+                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                 'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
             }, to=game_id)
         else:
