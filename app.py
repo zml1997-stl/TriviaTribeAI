@@ -403,7 +403,7 @@ def handle_join_game_room(data):
             emit('player_rejoined', {
                 'username': username,
                 'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
+                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                 'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                 'status': game.status,
                 'current_player': Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first().username if game.status == 'in_progress' else None,
