@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 # List of random trivia topics (unchanged)
 RANDOM_TOPICS = [
     "3rd grade math", "Business", "2010s music", "80s nostalgia", "Famous inventions",
-    # ... (rest of the list remains unchanged)
     "History of theater", "The art of brewing", "The history of toys and games"
 ]
 
@@ -73,7 +72,8 @@ with app.app_context():
     except Exception as e:
         logger.error(f"Unexpected error during database initialization: {str(e)}")
 
-socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
+# Updated SocketIO initialization with timeout settings
+socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True, ping_timeout=20, ping_interval=10)
 
 # Background task to clean up inactive games
 def cleanup_inactive_games():
@@ -85,6 +85,8 @@ def cleanup_inactive_games():
                     inactive_threshold = now - timedelta(minutes=2)
                     inactive_games = Game.query.filter(Game.last_activity < inactive_threshold).all()
                     for game in inactive_games:
+                        # Explicitly delete Answer records first to avoid NotNullViolation
+                        db.session.query(Answer).filter_by(game_id=game.id).delete()
                         players = Player.query.filter_by(game_id=game.id).all()
                         for player in players:
                             player.disconnected = True
@@ -332,7 +334,7 @@ def handle_join_game_room(data):
                 'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                 'status': game.status,
                 'current_player': Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first().username if game.status == 'in_progress' else None,
-                'current_question': None
+                'current_question': game.current_question if game.current_question else None
             }, to=game_id)
         elif game.status == 'waiting' and Player.query.filter_by(game_id=game_id).count() < 10:
             if Player.query.filter_by(game_id=game_id, username=username).first():
@@ -404,7 +406,7 @@ def handle_select_topic(data):
             if not duplicate_found:
                 new_question = Question(game_id=game_id, question_text=question_text, answer_text=answer_text)
                 db.session.add(new_question)
-                game.current_question = question_data
+                game.current_question = question_data  # Persisted as JSON in DB
                 game.question_start_time = datetime.utcnow()
                 game.last_activity = datetime.utcnow()
                 db.session.commit()
@@ -423,8 +425,8 @@ def handle_select_topic(data):
 def process_round_results(game_id):
     logger.debug(f"Processing round results for game {game_id}")
     game = Game.query.filter_by(id=game_id).first()
-    if not game or game.status != 'in_progress':
-        logger.error(f"Game {game_id} not found or not in progress")
+    if not game or game.status != 'in_progress' or not game.current_question:
+        logger.error(f"Game {game_id} not found, not in progress, or no current question")
         return True
     
     active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
@@ -499,7 +501,7 @@ def question_timer(game_id):
     time.sleep(30)
     with app.app_context():
         game = Game.query.filter_by(id=game_id).first()
-        if game and game.status == 'in_progress':
+        if game and game.status == 'in_progress' and game.current_question:
             active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
             num_answers = Answer.query.filter_by(game_id=game_id).count()
             logger.debug(f"Timer expired for game {game_id}. Active players: {len(active_players)}, Answers: {num_answers}")
@@ -534,7 +536,7 @@ def handle_submit_answer(data):
     game = Game.query.filter_by(id=game_id).first()
     player = Player.query.filter_by(game_id=game_id, username=username).first()
     if not (game and player and game.status == 'in_progress' and game.current_question):
-        logger.error(f"Invalid submit_answer: game {game_id}, player {username}, status {game.status if game else 'None'}")
+        logger.error(f"Invalid submit_answer: game {game_id}, player {username}, status {game.status if game else 'None'}, current_question {bool(game.current_question) if game else False}")
         emit('error', {'message': 'Invalid game state'}, to=game_id)
         return
     
