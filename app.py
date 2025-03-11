@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 import logging
 from models import db, migrate, Game, Player, Question, Answer
 from sqlalchemy import create_engine
+from sqlalchemy.exc import SQLAlchemyError
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -21,66 +22,13 @@ logger = logging.getLogger(__name__)
 # List of random trivia topics
 RANDOM_TOPICS = [
     "Famous movie quotes from the 80s", "Inventions everyone uses", "Major battles in world history", "Action movie stunts of the 90s", "Inventions that changed daily life",
-    "Ancient Egyptian pyramids", "Greek mythology stories", "Unusual animal facts", "NASA moon missions", "Science fiction movie classics",
-    "Popular beer brands", "Iconic landmarks everyone knows", "Olympic gold medal moments", "Netflix hit shows", "Catchphrases from classic films",
-    "Lost cities in movies", "Marvel superhero movies", "Famous graffiti tags", "AI in everyday tech", "Wild parties in history",
-    "Pets of US presidents", "Fashion trends of the 2000s", "Dark origins of nursery rhymes", "Broadway musical hits", "Medical breakthroughs we all know",
-    "Viking warrior tales", "Legendary video game heroes", "Cool tech gadgets", "Sports team mascot stories", "Secrets in famous paintings",
-    "Sitcoms with great theme songs", "Music festival moments", "Superstitions we all know", "Weird habits of world leaders", "Horror movie monsters",
-    "Guitar riffs from the 70s", "Pirate adventure stories", "Renaissance artist legends", "Time travel in blockbuster movies", "Famous bank heists",
-    "Car chases in action films", "Zombie movie rules", "Pop art everyone recognizes", "Disco hits of the 70s", "Political scandals everyone heard about",
-    "Nicknames of big cities", "Winter holiday traditions", "Breakdance moves we’ve seen", "Board games everyone plays", "Street art in famous cities",
-    "Haunted houses in movies", "Plot twists in popular films", "Women who shaped tech", "World War II spy stories", "Game show funny moments",
-    "Famous duos on TV", "Con artists in the news", "Failed gadgets from the 90s", "Myths about lost islands", "Life on space stations",
-    "Languages we’ve heard of", "Tattoo trends today", "Underdog sports wins", "Creatures in the ocean", "Beaches with famous stories",
-    "Fashion fads by decade", "Explorers everyone knows", "Wild West cowboy tales", "Alien invasion movies", "Music genres we love",
-    "Kings and queens of Africa", "Crazy war stories", "Habits of tech billionaires", "Climate change facts we know", "Ancient sports games",
-    "Songs from the 60s protests", "Snacks from the 90s", "Sea monster myths", "Conspiracy theories we’ve heard", "Science facts from school",
-    "Treaties that ended wars", "Cool stuff at world fairs", "Hollywood scandals of the 50s", "Math tricks we learned", "Stand-up comedy stars",
-    "Weird paintings we know", "UFO stories in the news", "Silk Road treasures", "Chinese dynasty tales", "Egyptian mummy facts",
-    "Music beats we recognize", "Animals we thought were gone", "Speeches we’ve heard", "Viral dances online", "Cult TV show moments",
-    "Bad girls in old movies", "Rock band breakup drama", "Hip-hop fights of the 90s", "Fashion show oops moments", "Sunken ship stories",
-    "Volcano eruptions we know", "Ballet dances we’ve seen", "Slasher movie deaths", "Cyber worlds in movies", "City gardening trends",
-    "Dictators’ funny outfits", "Nobel Prize winners we know", "Classical music we’ve heard", "Weird ideas we’ve debated", "Cold War spy tricks",
-    "Moon landing fun facts", "Famous bridges we’ve crossed", "Boy band songs of the 90s", "Meditation tips we’ve tried", "Roller coaster records",
-    "Shipwrecks in movies", "Secret hideouts in history", "Video game high scores", "Chocolate candy history", "Courtroom scenes in TV",
-    "Dishes by famous chefs", "Epic sports comebacks", "Toys from the 80s", "Treasure hunt legends", "Urban legends we tell",
-    "Wine types we’ve tasted", "Space junk we’ve heard about", "Medieval castle tales", "Protest signs we’ve seen", "Internet memes we love",
-    "Rollerblading in the 90s", "Movie soundtrack hits", "Monster sightings in lore", "Celebrity breakup gossip", "Ancient Olympic games",
-    "Fast food menu hacks", "Victorian ghost stories", "Whistleblowers in the news", "Arcade game classics", "Weird laws we laugh at",
-    "Books banned in school", "Extreme weather we’ve seen", "Emoji meanings we use", "Magicians we’ve watched", "Cursed movie rumors",
-    "Scientists we’ve heard of", "Beauty trends we’ve tried", "Plane crash stories", "Comedy teams we love", "Lost movies found again",
-    "Soda brands we drink", "Daredevil stunts on TV", "Secret clubs we’ve heard of", "Album covers we know", "Roller derby fun facts",
-    "Book rivalries we’ve read", "Retro fashion we’ve worn", "Bank robbery stories", "Popcorn flavors we’ve tried", "TV shows that got canceled",
-    "Recipes from grandma", "Cartoon voices we know", "Skateboarding tricks we’ve seen", "Missing person mysteries", "Train robbery legends",
-    "VR games we’ve played", "Theme park ride flops", "Bubble gum brands", "Spy tricks in movies", "Sibling fights in history",
-    "Pinball game themes", "Courtroom TV moments", "Firework show stories", "Celebrity pet names", "Yo-yo tricks we’ve tried",
-    "Movie car chase scenes", "Hot sauce brands", "Prison escape stories", "Kite flying fun", "Stunt doubles in films",
-    "Ice cream flavors we love", "Survival shows we watch", "Graffiti tags we’ve seen", "Monster truck crashes", "Jigsaw puzzle fun",
-    "Celebrity nicknames we know", "Karaoke songs we sing", "TV cliffhanger endings", "Glow stick party tricks", "Circus acts we’ve seen",
-    "Slapstick comedy gags", "Reality TV meltdowns", "Breakdance battles on TV", "Celebrity tattoo stories", "Snow globe scenes",
-    "Movie bloopers we’ve laughed at", "Fortune cookie sayings", "TV theme song hits", "Hacky sack games", "Stunt fails on video",
-    "Rubber duck designs", "Celebrity pranks we’ve seen", "Yo-yo moves we know", "TV spin-offs we’ve watched", "Frisbee games we’ve played",
-    "Movie props we recognize", "Trick-or-treat stories", "Celebrity feuds in the news", "Glow-in-the-dark toys", "TV reboots we’ve seen",
-    "Jump rope rhymes", "Movie poster art", "Silly string pranks", "Celebrity impersonators on TV", "Dodgeball games we’ve played",
-    "TV crossover episodes", "Water balloon fight stories", "Movie trailer lines we know", "Pogo stick fun", "Celebrity book deals",
-    "Hacky sack tricks we’ve tried", "Movie set mishaps", "Slinky toy fun", "TV award show moments", "Hula hoop games",
-    "Celebrity cameos we’ve spotted", "Paper airplane games", "Movie opening scenes we love", "Yo-yo contest stories", "TV finale surprises",
-    "Bubble wrap popping fun", "Celebrity roast jokes", "Kite surfing crashes", "Movie sequel flops", "Bouncy ball games",
-    "TV pilot episodes we’ve seen", "Glow stick rave stories", "Movie villain deaths", "Hopscotch games we played", "Celebrity scandals we know",
-    "Taffy candy flavors", "Movie monster looks", "Limbo dance parties", "TV guest stars we love", "Pinata party stories",
-    "Movie dance scene hits", "Twister game nights", "Celebrity arrest headlines", "Balloon animal fun", "TV show locations we know",
-    "Tug-of-war games", "Movie fight scenes we love", "Jacks game tricks", "Celebrity apology clips", "Yo-yo fad stories",
-    "Movie costumes we recognize", "Hoppy taw fun", "TV show drama moments", "Fidget spinner crazes", "Movie taglines we quote",
-    "Kite fighting stories", "Celebrity wedding gossip", "Silly putty play", "TV catchphrases we say", "Water gun fight tales",
-    "Movie chase music hits", "Hacky sack champs", "Celebrity ads we’ve seen", "Bubble blowing fun", "TV show props we know",
-    "Jump rope games we played", "Movie cliffhanger scenes", "Dodgeball rule twists", "Celebrity lawsuit news", "Slinky race fun"
+    # ... (keep the rest of the RANDOM_TOPICS list as in the original)
 ]
 
 # List of emojis for player icons
 PLAYER_EMOJIS = [
     "😄", "😂", "😎", "🤓", "🎉", "🚀", "🌟", "🍕", "🎸", "🎮",
-    "🏆", "💡", "🌍", "🎨", "📚", "🔥", "💎", "🐱", "🐶", "🌸"
+    # ... (keep the rest of the PLAYER_EMOJIS list as in the original)
 ]
 
 def generate_game_id():
@@ -95,6 +43,8 @@ load_dotenv()
 
 # Configure Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    logger.error("GEMINI_API_KEY not found in environment variables")
 genai.configure(api_key=GEMINI_API_KEY)
 
 app = Flask(__name__)
@@ -115,14 +65,16 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 migrate.init_app(app, db)
 
-# Verify database connection
+# Verify database connection with detailed logging
 with app.app_context():
     try:
         engine = create_engine(app.config['SQLALCHEMY_DATABASE_URI'])
         with engine.connect() as connection:
             logger.info("Database connection established successfully")
+    except SQLAlchemyError as e:
+        logger.error(f"Database connection failed: {str(e)}")
     except Exception as e:
-        logger.error(f"Failed to connect to database: {str(e)}")
+        logger.error(f"Unexpected error during database initialization: {str(e)}")
 
 socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
 
@@ -320,8 +272,8 @@ def handle_join_game_room(data):
             emit('player_rejoined', {
                 'username': username,
                 'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
-                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()],
+                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
+                'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                 'status': game.status,
                 'current_player': Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first().username if game.status == 'in_progress' else None,
                 'current_question': None  # To be handled separately if needed
@@ -357,7 +309,7 @@ def handle_start_game(data):
             emit('game_started', {
                 'current_player': current_player.username,
                 'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
+                'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                 'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
             }, to=game_id)
         else:
