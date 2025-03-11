@@ -16,6 +16,11 @@
             <div class="col-12">
                 <div class="play-card">
                     <h1>Play Trivia Tribe</h1>
+                    {% if error %}
+                        <div class="alert alert-danger" role="alert">
+                            {{ error }}
+                        </div>
+                    {% endif %}
                     <div class="mb-4">
                         <h3>Create a New Game</h3>
                         <form action="/create_game" method="post">
