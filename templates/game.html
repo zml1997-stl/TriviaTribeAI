@@ -297,9 +297,8 @@
                 showResults(data); 
             });
             socket.on('game_ended', function(data) { endGame(data); });
-            socket.on('random_topic_selected', function(data) {  // Recommendation 3
-                document.getElementById('topic-input').value = ''; // Clear input
-                document.getElementById('topic-input').placeholder = data.topic; // Full suggestion text as placeholder
+            socket.on('random_topic_selected', function(data) { 
+                document.getElementById('topic-display').textContent = data.topic; // Show the selected random topic
             });
             socket.on('game_reset', function(data) { resetGame(data); });
             socket.on('error', function(data) {
@@ -334,7 +333,8 @@
                         showQuestion({
                             question: data.current_question.question,
                             options: data.current_question.options,
-                            topic: data.current_question.topic || 'Unknown'
+                            topic: data.current_question.topic || 'Unknown',
+                            question_id: data.current_question.question_id
                         });
                     }
                 }
@@ -381,6 +381,11 @@
                     btn.disabled = false;
                     btn.classList.remove('active');
                 });
+            });
+
+            // Recommendation 3: Update topic input placeholder
+            socket.on('update_placeholder', function(data) {
+                document.getElementById('topic-input').placeholder = data.placeholder;
             });
         }
 
@@ -463,7 +468,7 @@
                 btn.addEventListener('click', function() {
                     const rating = parseInt(this.getAttribute('data-rating'));
                     socket.emit('submit_feedback', { 
-                        game_id: gameId, 
+                        game_id: gameId,  // Added to match server expectation
                         username: username, 
                         question_id: currentQuestionId, 
                         rating: rating 
