@@ -281,7 +281,7 @@ def final_scoreboard(game_id):
     if not game:
         return redirect(url_for('welcome'))
     players = Player.query.filter_by(game_id=game_id).all()
-    player_scores = {p.username: p.score for p in players}
+    player_scores = {p.username: p.score for p in players}  # Fixed syntax error
     player_emojis = {p.username: p.emoji for p in players}
 
     # Update last activity for any interaction
@@ -311,7 +311,7 @@ def reset_game(game_id):
     logger.debug(f"Game {game_id} reset by request")
     socketio.emit('game_reset', {
         'players': [p.username for p in players],
-        'scores': {p.username: p.score for p in players],
+        'scores': {p.username: p.score for p in players},
         'player_emojis': {p.username: p.emoji for p in players}
     }, to=game_id)
     
