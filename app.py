@@ -200,22 +200,28 @@ def update_game_activity(game_id):
 
 # Recommendation 3: Topic Recommendation Algorithm
 def recommend_topic(game_id, username):
-    # Fetch player's correct answers by joining Answer with Question
-    correct_answers = db.session.query(Answer, Question).join(Player).join(Question, Answer.game_id == Question.game_id).filter(
-        Player.game_id == game_id,
-        Player.username == username,
-        Answer.answer == Question.answer_text
+    player = Player.query.filter_by(game_id=game_id, username=username).first()
+    if not player:
+        return "Enter a topic of your choice"
+
+    # Fetch all answers and questions for this player in the game
+    answers_with_questions = db.session.query(Answer, Question).join(
+        Question, Answer.question_id == Question.id
+    ).filter(
+        Answer.player_id == player.id,
+        Answer.game_id == game_id
     ).all()
-    
+
     topic_performance = {}
-    for answer, question in correct_answers:
-        # Extract topic heuristically from question text
-        topic_match = re.search(r"about (.+?)[?.!]", question.question_text)
-        topic = topic_match.group(1) if topic_match else question.question_text.split()[0]  # Fallback to first word if no "about"
-        topic_performance[topic] = topic_performance.get(topic, 0) + 1
-    
+    for answer, question in answers_with_questions:
+        # Check if the answer matches the correct answer stored in Question
+        if answer.answer == question.answer_text:
+            # Extract topic heuristically from question text
+            topic_match = re.search(r"about (.+?)[?.!]", question.question_text)
+            topic = topic_match.group(1) if topic_match else question.question_text.split()[0]
+            topic_performance[topic] = topic_performance.get(topic, 0) + 1
+
     if topic_performance:
-        # Return the topic with the most correct answers
         recommended_topic = max(topic_performance, key=topic_performance.get)
         return f"Recommended topic for you: {recommended_topic}"
     return "Enter a topic of your choice"
@@ -580,14 +586,13 @@ def handle_select_topic(data):
 
             max_attempts = 10
             for attempt in range(max_attempts):
-                if not topic or topic.strip() == "":  # Recommendation 3: Suggest a topic if none provided
+                if not topic or topic.strip() == "":
                     topic = recommend_topic(game_id, username)
                     emit('random_topic_selected', {'topic': topic}, to=game_id)
-                    # If it's a recommendation, strip the prefix for question generation
                     if topic.startswith("Recommended topic for you: "):
                         topic = topic.replace("Recommended topic for you: ", "")
                     elif topic == "Enter a topic of your choice":
-                        topic = random.choice(RANDOM_TOPICS)  # Fallback to random if no performance data
+                        topic = random.choice(RANDOM_TOPICS)
 
                 question_data = get_trivia_question(topic)
                 question_text = question_data['question']
@@ -599,7 +604,9 @@ def handle_select_topic(data):
                 if not is_duplicate:
                     new_question = Question(game_id=game_id, question_text=question_text, answer_text=answer_text)
                     db.session.add(new_question)
+                    db.session.flush()  # Get the new_question.id before committing
                     game.current_question = question_data
+                    game.current_question['question_id'] = new_question.id  # Store question ID
                     game.question_start_time = datetime.utcnow()
                     db.session.commit()
 
@@ -607,7 +614,7 @@ def handle_select_topic(data):
                         'question': question_data['question'],
                         'options': question_data['options'],
                         'topic': topic,
-                        'question_id': new_question.id  # Added for feedback
+                        'question_id': new_question.id
                     }, to=game_id)
                     socketio.start_background_task(question_timer, game_id)
                     update_game_activity(game_id)
@@ -625,15 +632,15 @@ def question_timer(game_id):
         if game and game.status == 'in_progress':
             active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
             for player in active_players:
-                if not Answer.query.filter_by(game_id=game_id, player_id=player.id).first():
-                    new_answer = Answer(game_id=game_id, player_id=player.id, answer=None)
+                if not Answer.query.filter_by(game_id=game_id, player_id=player.id, question_id=game.current_question['question_id']).first():
+                    new_answer = Answer(game_id=game_id, player_id=player.id, question_id=game.current_question['question_id'], answer=None)
                     db.session.add(new_answer)
             db.session.commit()
 
-            if Answer.query.filter_by(game_id=game_id).count() == len(active_players):
-                current_question = Question.query.filter_by(game_id=game_id).order_by(Question.id.desc()).first()
+            if Answer.query.filter_by(game_id=game_id, question_id=game.current_question['question_id']).count() == len(active_players):
+                current_question = Question.query.filter_by(game_id=game_id, id=game.current_question['question_id']).first()
                 correct_answer = game.current_question['answer']
-                correct_players = [p for p in active_players if Answer.query.filter_by(game_id=game_id, player_id=p.id).first().answer == correct_answer]
+                correct_players = [p for p in active_players if Answer.query.filter_by(game_id=game_id, player_id=p.id, question_id=current_question.id).first().answer == correct_answer]
                 for p in correct_players:
                     p.score += 1
                 db.session.commit()
@@ -652,16 +659,16 @@ def question_timer(game_id):
                     emit('round_results', {
                         'correct_answer': correct_answer,
                         'explanation': game.current_question['explanation'],
-                        'player_answers': {p.username: a.answer for p, a in [(p, Answer.query.filter_by(game_id=game_id, player_id=p.id).first()) for p in Player.query.filter_by(game_id=game_id).all()]},
+                        'player_answers': {p.username: a.answer for p, a in [(p, Answer.query.filter_by(game_id=game_id, player_id=p.id, question_id=current_question.id).first()) for p in Player.query.filter_by(game_id=game_id).all()]},
                         'correct_players': [p.username for p in correct_players],
                         'next_player': next_player.username,
                         'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                         'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
-                        'question_id': current_question.id  # Added for feedback
+                        'question_id': current_question.id
                     }, to=game_id)
                     # Recommendation 5: Request feedback after results
                     emit('request_feedback', {'question_id': current_question.id}, to=game_id)
-                    db.session.query(Answer).filter_by(game_id=game_id).delete()
+                    db.session.query(Answer).filter_by(game_id=game_id, question_id=current_question.id).delete()
                     db.session.commit()
                     update_game_activity(game_id)
                 else:
@@ -687,11 +694,11 @@ def handle_submit_answer(data):
                 option_index = ord(answer) - ord('A')
                 answer = game.current_question['options'][option_index]
             
-            existing_answer = Answer.query.filter_by(game_id=game_id, player_id=player.id).first()
+            existing_answer = Answer.query.filter_by(game_id=game_id, player_id=player.id, question_id=game.current_question['question_id']).first()
             if existing_answer:
                 existing_answer.answer = answer
             else:
-                new_answer = Answer(game_id=game_id, player_id=player.id, answer=answer)
+                new_answer = Answer(game_id=game_id, player_id=player.id, question_id=game.current_question['question_id'], answer=answer)
                 db.session.add(new_answer)
             db.session.commit()
 
@@ -700,13 +707,13 @@ def handle_submit_answer(data):
             active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
             if len(active_players) == 1:
                 correct_answer = game.current_question['answer']
-                correct_players = [p for p in active_players if Answer.query.filter_by(game_id=game_id, player_id=p.id).first().answer == correct_answer]
+                correct_players = [p for p in active_players if Answer.query.filter_by(game_id=game_id, player_id=p.id, question_id=game.current_question['question_id']).first().answer == correct_answer]
                 
                 for p in correct_players:
                     p.score += 1
                 db.session.commit()
 
-                current_question = Question.query.filter_by(game_id=game_id).order_by(Question.id.desc()).first()
+                current_question = Question.query.filter_by(game_id=game_id, id=game.current_question['question_id']).first()
                 max_score = max([p.score for p in Player.query.filter_by(game_id=game_id).all()] + [0])
                 if max_score >= 10:
                     emit('game_ended', {
@@ -721,30 +728,30 @@ def handle_submit_answer(data):
                     emit('round_results', {
                         'correct_answer': correct_answer,
                         'explanation': game.current_question['explanation'],
-                        'player_answers': {p.username: a.answer for p, a in [(p, Answer.query.filter_by(game_id=game_id, player_id=p.id).first()) for p in Player.query.filter_by(game_id=game_id).all()]},
+                        'player_answers': {p.username: a.answer for p, a in [(p, Answer.query.filter_by(game_id=game_id, player_id=p.id, question_id=current_question.id).first()) for p in Player.query.filter_by(game_id=game_id).all()]},
                         'correct_players': [p.username for p in correct_players],
                         'next_player': next_player.username,
                         'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                         'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
-                        'question_id': current_question.id  # Added for feedback
+                        'question_id': current_question.id
                     }, to=game_id)
                     # Recommendation 5: Request feedback after results
                     emit('request_feedback', {'question_id': current_question.id}, to=game_id)
-                    db.session.query(Answer).filter_by(game_id=game_id).delete()
+                    db.session.query(Answer).filter_by(game_id=game_id, question_id=current_question.id).delete()
                     db.session.commit()
                     update_game_activity(game_id)
                 else:
                     emit('game_paused', {'message': 'No active players remaining'}, to=game_id)
                     update_game_activity(game_id)
-            elif Answer.query.filter_by(game_id=game_id).count() == len(active_players):
+            elif Answer.query.filter_by(game_id=game_id, question_id=game.current_question['question_id']).count() == len(active_players):
                 correct_answer = game.current_question['answer']
-                correct_players = [p for p in active_players if Answer.query.filter_by(game_id=game_id, player_id=p.id).first().answer == correct_answer]
+                correct_players = [p for p in active_players if Answer.query.filter_by(game_id=game_id, player_id=p.id, question_id=game.current_question['question_id']).first().answer == correct_answer]
                 
                 for p in correct_players:
                     p.score += 1
                 db.session.commit()
 
-                current_question = Question.query.filter_by(game_id=game_id).order_by(Question.id.desc()).first()
+                current_question = Question.query.filter_by(game_id=game_id, id=game.current_question['question_id']).first()
                 max_score = max([p.score for p in Player.query.filter_by(game_id=game_id).all()] + [0])
                 if max_score >= 10:
                     emit('game_ended', {
@@ -759,16 +766,16 @@ def handle_submit_answer(data):
                     emit('round_results', {
                         'correct_answer': correct_answer,
                         'explanation': game.current_question['explanation'],
-                        'player_answers': {p.username: a.answer for p, a in [(p, Answer.query.filter_by(game_id=game_id, player_id=p.id).first()) for p in Player.query.filter_by(game_id=game_id).all()]},
+                        'player_answers': {p.username: a.answer for p, a in [(p, Answer.query.filter_by(game_id=game_id, player_id=p.id, question_id=current_question.id).first()) for p in Player.query.filter_by(game_id=game_id).all()]},
                         'correct_players': [p.username for p in correct_players],
                         'next_player': next_player.username,
                         'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                         'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
-                        'question_id': current_question.id  # Added for feedback
+                        'question_id': current_question.id
                     }, to=game_id)
                     # Recommendation 5: Request feedback after results
                     emit('request_feedback', {'question_id': current_question.id}, to=game_id)
-                    db.session.query(Answer).filter_by(game_id=game_id).delete()
+                    db.session.query(Answer).filter_by(game_id=game_id, question_id=current_question.id).delete()
                     db.session.commit()
                     update_game_activity(game_id)
                 else:
