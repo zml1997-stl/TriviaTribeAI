@@ -18,7 +18,7 @@ class Game(db.Model):
     players = db.relationship('Player', backref='game', lazy=True, cascade='all, delete-orphan')
     questions = db.relationship('Question', backref='game', lazy=True, cascade='all, delete-orphan')
     answers = db.relationship('Answer', backref='game', lazy=True, cascade='all, delete-orphan')
-    ratings = db.relationship('Rating', backref='game', lazy=True, cascade='all, delete-orphan')  # Added for feedback
+    ratings = db.relationship('Rating', backref='game', lazy=True, cascade='all, delete-orphan')
 
 class Player(db.Model):
     __tablename__ = 'players'
@@ -31,7 +31,7 @@ class Player(db.Model):
 
     # Relationships
     answers = db.relationship('Answer', backref='player', lazy=True, cascade='all, delete-orphan')
-    ratings = db.relationship('Rating', backref='player', lazy=True, cascade='all, delete-orphan')  # Added for feedback
+    ratings = db.relationship('Rating', backref='player', lazy=True, cascade='all, delete-orphan')
 
 class Question(db.Model):
     __tablename__ = 'questions'
@@ -41,16 +41,16 @@ class Question(db.Model):
     answer_text = db.Column(db.Text, nullable=False)
 
     # Relationship for feedback
-    ratings = db.relationship('Rating', backref='question', lazy=True, cascade='all, delete-orphan')  # Added for feedback
+    ratings = db.relationship('Rating', backref='question', lazy=True, cascade='all, delete-orphan')
 
 class Answer(db.Model):
+    __tablename__ = 'answers'  # Added explicit table name for consistency
     id = db.Column(db.Integer, primary_key=True)
-    game_id = db.Column(db.String(4), db.ForeignKey('game.id'), nullable=False)
-    player_id = db.Column(db.Integer, db.ForeignKey('player.id'), nullable=False)
-    question_id = db.Column(db.Integer, db.ForeignKey('question.id'), nullable=False)  # Add this
+    game_id = db.Column(db.String(4), db.ForeignKey('games.id'), nullable=False)  # Fixed to 'games.id'
+    player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=False)  # Fixed to 'players.id'
+    question_id = db.Column(db.Integer, db.ForeignKey('questions.id'), nullable=False)
     answer = db.Column(db.String(255))
 
-# New model for Recommendation 5: Question Quality Feedback
 class Rating(db.Model):
     __tablename__ = 'ratings'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
