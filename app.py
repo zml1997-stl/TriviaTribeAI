@@ -501,30 +501,36 @@ def handle_start_game(data):
     
     with app.app_context():
         try:
-            game = Game.query.filter_by(id=game_id).first()
+            start_time = datetime.utcnow()
+            logger.debug(f"Starting game {game_id} by {username} at {start_time}")
+            
+            # Fetch game and validate in one query
+            game = Game.query.filter_by(id=game_id, host=username, status='waiting').first()
             if not game:
-                logger.warning(f"Game {game_id} not found for start_game")
-                emit('error', {'message': 'Game not found. Please create a new game.'}, to=game_id)
-                return
+                game_check = Game.query.filter_by(id=game_id).first()
+                if not game_check:
+                    logger.warning(f"Game {game_id} not found for start_game")
+                    emit('error', {'message': 'Game not found. Please create a new game.'}, to=game_id)
+                    return
+                if username != game_check.host:
+                    logger.warning(f"User {username} is not the host of game {game_id}")
+                    emit('error', {'message': 'Only the host can start the game.'}, to=game_id)
+                    return
+                if game_check.status != 'waiting':
+                    logger.warning(f"Game {game_id} is not in waiting state, current status: {game_check.status}")
+                    emit('error', {'message': 'Game cannot be started. It may already be in progress.'}, to=game_id)
+                    return
 
-            if username != game.host:
-                logger.warning(f"User {username} is not the host of game {game_id}")
-                emit('error', {'message': 'Only the host can start the game.'}, to=game_id)
-                return
-
-            if game.status != 'waiting':
-                logger.warning(f"Game {game_id} is not in waiting state, current status: {game.status}")
-                emit('error', {'message': 'Game cannot be started. It may already be in progress.'}, to=game_id)
-                return
-
-            # Optimize database queries and updates
+            # Update game status
             game.status = 'in_progress'
             db.session.commit()
-            current_player = Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first()
-            if current_player.disconnected:
+
+            # Fetch players and current player in one query
+            players = Player.query.filter_by(game_id=game_id).all()
+            current_player = players[game.current_player_index] if players else None
+            if current_player and current_player.disconnected:
                 current_player = get_next_active_player(game_id)
             
-            players = Player.query.filter_by(game_id=game_id).all()
             player_data = {
                 'current_player': current_player.username if current_player else None,
                 'players': [p.username for p in players],
@@ -532,7 +538,8 @@ def handle_start_game(data):
                 'player_emojis': {p.username: p.emoji for p in players}
             }
             
-            logger.debug(f"Game {game_id} started by host {username}, current player: {current_player.username if current_player else 'None'}")
+            end_time = datetime.utcnow()
+            logger.debug(f"Game {game_id} started by host {username}, current player: {current_player.username if current_player else 'None'}, took {(end_time - start_time).total_seconds()} seconds")
             emit('game_started', player_data, to=game_id)
             update_game_activity(game_id)
         except Exception as e:
