@@ -208,7 +208,7 @@
         let player_emojis = {};
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 5;
-        let currentQuestionId = null; // Added for feedback
+        let currentQuestionId = null;
 
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
@@ -221,7 +221,7 @@
         const connectionStatus = document.getElementById('connection-status');
         const startGameBtn = document.getElementById('start-game-btn');
         const startGameLoading = document.getElementById('start-game-loading');
-        const feedbackForm = document.getElementById('feedback-form'); // Added for feedback
+        const feedbackForm = document.getElementById('feedback-form');
 
         document.addEventListener('DOMContentLoaded', function() {
             const storedGameId = localStorage.getItem('gameId');
@@ -298,8 +298,8 @@
             });
             socket.on('game_ended', function(data) { endGame(data); });
             socket.on('random_topic_selected', function(data) {  // Recommendation 3
-                document.getElementById('topic-input').value = data.topic;
-                document.getElementById('topic-input').placeholder = `Suggested: ${data.topic}`;
+                document.getElementById('topic-input').value = ''; // Clear input
+                document.getElementById('topic-input').placeholder = data.topic; // Full suggestion text as placeholder
             });
             socket.on('game_reset', function(data) { resetGame(data); });
             socket.on('error', function(data) {
@@ -547,7 +547,7 @@
             document.getElementById('answered-players').innerHTML = '';
             document.getElementById('answer-progress').style.width = '0%';
             startTimer();
-            currentQuestionId = data.question_id; // Store question ID for feedback
+            currentQuestionId = data.question_id;
         }
 
         function startTimer() {
@@ -613,7 +613,7 @@
             document.getElementById('next-player').textContent = data.next_player;
             updateScoreboard(data.scores, data.player_emojis);
             startNextRoundCountdown(data.next_player);
-            currentQuestionId = data.question_id; // Update question ID for feedback
+            currentQuestionId = data.question_id;
         }
 
         function endGame(data) {
@@ -648,7 +648,7 @@
                 progressBar.style.width = '0%';
                 progressBar.style.transition = 'none';
                 resultsDisplay.style.display = 'none';
-                feedbackForm.style.display = 'none'; // Hide feedback form
+                feedbackForm.style.display = 'none';
                 if (nextPlayer === username) {
                     topicSelection.style.display = 'block';
                     document.getElementById('topic-input').value = '';
