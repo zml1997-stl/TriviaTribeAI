@@ -44,11 +44,11 @@ class Question(db.Model):
     ratings = db.relationship('Rating', backref='question', lazy=True, cascade='all, delete-orphan')  # Added for feedback
 
 class Answer(db.Model):
-    __tablename__ = 'answers'
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    game_id = db.Column(db.String(4), db.ForeignKey('games.id'), nullable=False)
-    player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=False)
-    answer = db.Column(db.Text)
+    id = db.Column(db.Integer, primary_key=True)
+    game_id = db.Column(db.String(4), db.ForeignKey('game.id'), nullable=False)
+    player_id = db.Column(db.Integer, db.ForeignKey('player.id'), nullable=False)
+    question_id = db.Column(db.Integer, db.ForeignKey('question.id'), nullable=False)  # Add this
+    answer = db.Column(db.String(255))
 
 # New model for Recommendation 5: Question Quality Feedback
 class Rating(db.Model):
