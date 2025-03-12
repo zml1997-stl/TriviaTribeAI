@@ -70,6 +70,13 @@ p, .form-label {
     display: block;
 }
 
+/* Input Placeholder Styling */
+#topic-input::placeholder {
+    font-size: 0.85rem; /* Smaller than default for better fit */
+    color: #A0A0A0; /* Muted gray for contrast against purple */
+    opacity: 0.8; /* Slightly transparent to distinguish from entered text */
+}
+
 /* Buttons */
 .btn-primary, .btn-success, .animated-btn {
     background-color: #00FFFF;
