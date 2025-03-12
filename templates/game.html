@@ -123,6 +123,25 @@
                                 </div>
                             </div>
                             
+                            <!-- Recommendation 5: Feedback Form -->
+                            <div id="feedback-form" class="card mb-4" style="display: none;">
+                                <div class="card-header bg-warning">
+                                    <h4 class="mb-0">Rate This Question</h4>
+                                </div>
+                                <div class="card-body text-center">
+                                    <p>How would you rate the quality of this question? (0 = Poor, 5 = Excellent)</p>
+                                    <div class="btn-group" role="group">
+                                        <button type="button" class="btn btn-outline-primary feedback-btn" data-rating="0">0</button>
+                                        <button type="button" class="btn btn-outline-primary feedback-btn" data-rating="1">1</button>
+                                        <button type="button" class="btn btn-outline-primary feedback-btn" data-rating="2">2</button>
+                                        <button type="button" class="btn btn-outline-primary feedback-btn" data-rating="3">3</button>
+                                        <button type="button" class="btn btn-outline-primary feedback-btn" data-rating="4">4</button>
+                                        <button type="button" class="btn btn-outline-primary feedback-btn" data-rating="5">5</button>
+                                    </div>
+                                    <p id="feedback-submitted" class="mt-2" style="display: none;">Thank you for your feedback!</p>
+                                </div>
+                            </div>
+                            
                             <div id="next-round-info" class="text-center">
                                 <p>Next round starting soon...</p>
                                 <p>It will be <span id="next-player" class="fw-bold"></span>'s turn to select a topic.</p>
@@ -189,6 +208,7 @@
         let player_emojis = {};
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 5;
+        let currentQuestionId = null; // Added for feedback
 
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
@@ -201,6 +221,7 @@
         const connectionStatus = document.getElementById('connection-status');
         const startGameBtn = document.getElementById('start-game-btn');
         const startGameLoading = document.getElementById('start-game-loading');
+        const feedbackForm = document.getElementById('feedback-form'); // Added for feedback
 
         document.addEventListener('DOMContentLoaded', function() {
             const storedGameId = localStorage.getItem('gameId');
@@ -276,8 +297,9 @@
                 showResults(data); 
             });
             socket.on('game_ended', function(data) { endGame(data); });
-            socket.on('random_topic_selected', function(data) {
+            socket.on('random_topic_selected', function(data) {  // Recommendation 3
                 document.getElementById('topic-input').value = data.topic;
+                document.getElementById('topic-input').placeholder = `Suggested: ${data.topic}`;
             });
             socket.on('game_reset', function(data) { resetGame(data); });
             socket.on('error', function(data) {
@@ -349,6 +371,17 @@
                 console.log(`${data.username} disconnected`);
                 updatePlayerList([...document.getElementById('player-list').children].map(li => li.textContent.split(' ')[1]), player_emojis);
             });
+
+            // Recommendation 5: Handle feedback request
+            socket.on('request_feedback', function(data) {
+                currentQuestionId = data.question_id;
+                feedbackForm.style.display = 'block';
+                document.getElementById('feedback-submitted').style.display = 'none';
+                document.querySelectorAll('.feedback-btn').forEach(btn => {
+                    btn.disabled = false;
+                    btn.classList.remove('active');
+                });
+            });
         }
 
         let startGameTimeout;
@@ -359,25 +392,22 @@
                     startGameBtn.disabled = true;
                     startGameLoading.style.display = 'block';
                     socket.emit('start_game', { game_id: gameId, username: username });
-                    // Set a timeout to handle if game_started event isn't received
                     startGameTimeout = setTimeout(() => {
                         startGameBtn.disabled = false;
                         startGameLoading.style.display = 'none';
                         alert('Failed to start the game. The server may be busy or disconnected. Please try again.');
-                    }, 10000); // 10 seconds timeout
+                    }, 10000);
                 });
             }
             document.getElementById('submit-topic-btn').addEventListener('click', function() {
                 const topic = document.getElementById('topic-input').value.trim();
-                if (topic) {
-                    socket.emit('select_topic', { game_id: gameId, username: username, topic: topic });
-                    topicSelection.style.display = 'none';
-                    const loadingDiv = document.createElement('div');
-                    loadingDiv.id = 'loading-question';
-                    loadingDiv.className = 'text-center my-5';
-                    loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
-                    document.querySelector('.card-body').appendChild(loadingDiv);
-                }
+                socket.emit('select_topic', { game_id: gameId, username: username, topic: topic });
+                topicSelection.style.display = 'none';
+                const loadingDiv = document.createElement('div');
+                loadingDiv.id = 'loading-question';
+                loadingDiv.className = 'text-center my-5';
+                loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
+                document.querySelector('.card-body').appendChild(loadingDiv);
             });
             document.getElementById('random-topic-btn').addEventListener('click', function() {
                 socket.emit('select_topic', { game_id: gameId, username: username, topic: '' });
@@ -426,6 +456,22 @@
             });
             document.getElementById('mute-btn').addEventListener('click', function() {
                 window.muteToggle();
+            });
+
+            // Recommendation 5: Feedback button listeners
+            document.querySelectorAll('.feedback-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const rating = parseInt(this.getAttribute('data-rating'));
+                    socket.emit('submit_feedback', { 
+                        game_id: gameId, 
+                        username: username, 
+                        question_id: currentQuestionId, 
+                        rating: rating 
+                    });
+                    this.classList.add('active');
+                    document.getElementById('feedback-submitted').style.display = 'block';
+                    document.querySelectorAll('.feedback-btn').forEach(b => b.disabled = true);
+                });
             });
         }
 
@@ -501,6 +547,7 @@
             document.getElementById('answered-players').innerHTML = '';
             document.getElementById('answer-progress').style.width = '0%';
             startTimer();
+            currentQuestionId = data.question_id; // Store question ID for feedback
         }
 
         function startTimer() {
@@ -566,6 +613,7 @@
             document.getElementById('next-player').textContent = data.next_player;
             updateScoreboard(data.scores, data.player_emojis);
             startNextRoundCountdown(data.next_player);
+            currentQuestionId = data.question_id; // Update question ID for feedback
         }
 
         function endGame(data) {
@@ -600,6 +648,7 @@
                 progressBar.style.width = '0%';
                 progressBar.style.transition = 'none';
                 resultsDisplay.style.display = 'none';
+                feedbackForm.style.display = 'none'; // Hide feedback form
                 if (nextPlayer === username) {
                     topicSelection.style.display = 'block';
                     document.getElementById('topic-input').value = '';
@@ -621,7 +670,7 @@
             scoreboard.style.display = 'none';
             leaveGameContainer.style.display = 'none';
             waitingLobby.style.display = 'block';
-            startGameBtn.disabled = false; // Re-enable Start Game button
+            startGameBtn.disabled = false;
             startGameLoading.style.display = 'none';
             window.switchToHomeMusic();
             updatePlayerList(data.players, data.player_emojis);
