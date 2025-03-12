@@ -200,19 +200,25 @@ def update_game_activity(game_id):
 
 # Recommendation 3: Topic Recommendation Algorithm
 def recommend_topic(game_id, username):
-    answers = Answer.query.join(Player).filter(Player.game_id == game_id, Player.username == username).all()
-    questions = Question.query.filter_by(game_id=game_id).all()
+    # Fetch player's correct answers by joining Answer with Question
+    correct_answers = db.session.query(Answer, Question).join(Player).join(Question, Answer.game_id == Question.game_id).filter(
+        Player.game_id == game_id,
+        Player.username == username,
+        Answer.answer == Question.answer_text
+    ).all()
+    
     topic_performance = {}
-    for q in questions:
-        for a in answers:
-            if a.answer == q.answer_text:
-                # Extract topic heuristically from question text
-                topic_match = re.search(r"about (.+?)[?.!]", q.question_text)
-                topic = topic_match.group(1) if topic_match else q.question_text
-                topic_performance[topic] = topic_performance.get(topic, 0) + 1
+    for answer, question in correct_answers:
+        # Extract topic heuristically from question text
+        topic_match = re.search(r"about (.+?)[?.!]", question.question_text)
+        topic = topic_match.group(1) if topic_match else question.question_text.split()[0]  # Fallback to first word if no "about"
+        topic_performance[topic] = topic_performance.get(topic, 0) + 1
+    
     if topic_performance:
-        return max(topic_performance, key=topic_performance.get)
-    return random.choice(RANDOM_TOPICS)
+        # Return the topic with the most correct answers
+        recommended_topic = max(topic_performance, key=topic_performance.get)
+        return f"Recommended topic for you: {recommended_topic}"
+    return "Enter a topic of your choice"
 
 @app.route('/')
 def welcome():
@@ -574,9 +580,14 @@ def handle_select_topic(data):
 
             max_attempts = 10
             for attempt in range(max_attempts):
-                if not topic:  # Recommendation 3: Suggest a topic if none provided
+                if not topic or topic.strip() == "":  # Recommendation 3: Suggest a topic if none provided
                     topic = recommend_topic(game_id, username)
                     emit('random_topic_selected', {'topic': topic}, to=game_id)
+                    # If it's a recommendation, strip the prefix for question generation
+                    if topic.startswith("Recommended topic for you: "):
+                        topic = topic.replace("Recommended topic for you: ", "")
+                    elif topic == "Enter a topic of your choice":
+                        topic = random.choice(RANDOM_TOPICS)  # Fallback to random if no performance data
 
                 question_data = get_trivia_question(topic)
                 question_text = question_data['question']
