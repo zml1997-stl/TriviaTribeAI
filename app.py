@@ -281,7 +281,7 @@ def final_scoreboard(game_id):
     if not game:
         return redirect(url_for('welcome'))
     players = Player.query.filter_by(game_id=game_id).all()
-    player_scores = {p.username: p.score for p in players}  # Fixed syntax error
+    player_scores = {p.username: p.score for p in players}
     player_emojis = {p.username: p.emoji for p in players}
 
     # Update last activity for any interaction
@@ -402,8 +402,8 @@ def handle_join_game_room(data):
                 emit('player_rejoined', {
                     'username': username,
                     'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                    'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
-                    'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()],
+                    'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
+                    'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                     'status': game.status,
                     'current_player': Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first().username if game.status == 'in_progress' else None,
                     'current_question': None  # To be handled separately if needed
@@ -447,7 +447,7 @@ def handle_start_game(data):
                 emit('game_started', {
                     'current_player': current_player.username,
                     'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                    'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
+                    'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                     'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
                 }, to=game_id)
             else:
