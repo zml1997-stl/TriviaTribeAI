@@ -18,6 +18,7 @@ class Game(db.Model):
     players = db.relationship('Player', backref='game', lazy=True, cascade='all, delete-orphan')
     questions = db.relationship('Question', backref='game', lazy=True, cascade='all, delete-orphan')
     answers = db.relationship('Answer', backref='game', lazy=True, cascade='all, delete-orphan')
+    ratings = db.relationship('Rating', backref='game', lazy=True, cascade='all, delete-orphan')  # Added for feedback
 
 class Player(db.Model):
     __tablename__ = 'players'
@@ -28,6 +29,10 @@ class Player(db.Model):
     emoji = db.Column(db.String(10))
     disconnected = db.Column(db.Boolean, default=False)
 
+    # Relationships
+    answers = db.relationship('Answer', backref='player', lazy=True, cascade='all, delete-orphan')
+    ratings = db.relationship('Rating', backref='player', lazy=True, cascade='all, delete-orphan')  # Added for feedback
+
 class Question(db.Model):
     __tablename__ = 'questions'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -35,9 +40,21 @@ class Question(db.Model):
     question_text = db.Column(db.Text, nullable=False)
     answer_text = db.Column(db.Text, nullable=False)
 
+    # Relationship for feedback
+    ratings = db.relationship('Rating', backref='question', lazy=True, cascade='all, delete-orphan')  # Added for feedback
+
 class Answer(db.Model):
     __tablename__ = 'answers'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     game_id = db.Column(db.String(4), db.ForeignKey('games.id'), nullable=False)
     player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=False)
     answer = db.Column(db.Text)
+
+# New model for Recommendation 5: Question Quality Feedback
+class Rating(db.Model):
+    __tablename__ = 'ratings'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    game_id = db.Column(db.String(4), db.ForeignKey('games.id'), nullable=False)
+    player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=False)
+    question_id = db.Column(db.Integer, db.ForeignKey('questions.id'), nullable=False)
+    rating = db.Column(db.Integer, nullable=False)  # 0-5 scale
