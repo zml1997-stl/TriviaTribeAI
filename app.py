@@ -11,7 +11,7 @@ import string
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime, timedelta
 import logging
-from models import db, migrate, Game, Player, Question, Answer, Rating  # Added Rating model
+from models import db, migrate, Game, Player, Question, Answer, Rating
 from sqlalchemy import create_engine, func
 from sqlalchemy.exc import SQLAlchemyError
 from tenacity import retry, stop_after_attempt, wait_fixed
@@ -20,64 +20,8 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# List of random trivia topics
-RANDOM_TOPICS = [
-    "Famous movie quotes from the 80s", "Inventions everyone uses", "Major battles in world history", "Action movie stunts of the 90s", "Inventions that changed daily life",
-    "Ancient Egyptian pyramids", "Greek mythology stories", "Unusual animal facts", "NASA moon missions", "Science fiction movie classics",
-    "Popular beer brands", "Iconic landmarks everyone knows", "Olympic gold medal moments", "Netflix hit shows", "Catchphrases from classic films",
-    "Lost cities in movies", "Marvel superhero movies", "Famous graffiti tags", "AI in everyday tech", "Wild parties in history",
-    "Pets of US presidents", "Fashion trends of the 2000s", "Dark origins of nursery rhymes", "Broadway musical hits", "Medical breakthroughs we all know",
-    "Viking warrior tales", "Legendary video game heroes", "Cool tech gadgets", "Sports team mascot stories", "Secrets in famous paintings",
-    "Sitcoms with great theme songs", "Music festival moments", "Superstitions we all know", "Weird habits of world leaders", "Horror movie monsters",
-    "Guitar riffs from the 70s", "Pirate adventure stories", "Renaissance artist legends", "Time travel in blockbuster movies", "Famous bank heists",
-    "Car chases in action films", "Zombie movie rules", "Pop art everyone recognizes", "Disco hits of the 70s", "Political scandals everyone heard about",
-    "Nicknames of big cities", "Winter holiday traditions", "Breakdance moves we’ve seen", "Board games everyone plays", "Street art in famous cities",
-    "Haunted houses in movies", "Plot twists in popular films", "Women who shaped tech", "World War II spy stories", "Game show funny moments",
-    "Famous duos on TV", "Con artists in the news", "Failed gadgets from the 90s", "Myths about lost islands", "Life on space stations",
-    "Languages we’ve heard of", "Tattoo trends today", "Underdog sports wins", "Creatures in the ocean", "Beaches with famous stories",
-    "Fashion fads by decade", "Explorers everyone knows", "Wild West cowboy tales", "Alien invasion movies", "Music genres we love",
-    "Kings and queens of Africa", "Crazy war stories", "Habits of tech billionaires", "Climate change facts we know", "Ancient sports games",
-    "Songs from the 60s protests", "Snacks from the 90s", "Sea monster myths", "Conspiracy theories we’ve heard", "Science facts from school",
-    "Treaties that ended wars", "Cool stuff at world fairs", "Hollywood scandals of the 50s", "Math tricks we learned", "Stand-up comedy stars",
-    "Weird paintings we know", "UFO stories in the news", "Silk Road treasures", "Chinese dynasty tales", "Egyptian mummy facts",
-    "Music beats we recognize", "Animals we thought were gone", "Speeches we’ve heard", "Viral dances online", "Cult TV show moments",
-    "Bad girls in old movies", "Rock band breakup drama", "Hip-hop fights of the 90s", "Fashion show oops moments", "Sunken ship stories",
-    "Volcano eruptions we know", "Ballet dances we’ve seen", "Slasher movie deaths", "Cyber worlds in movies", "City gardening trends",
-    "Dictators’ funny outfits", "Nobel Prize winners we know", "Classical music we’ve heard", "Weird ideas we’ve debated", "Cold War spy tricks",
-    "Moon landing fun facts", "Famous bridges we’ve crossed", "Boy band songs of the 90s", "Meditation tips we’ve tried", "Roller coaster records",
-    "Shipwrecks in movies", "Secret hideouts in history", "Video game high scores", "Chocolate candy history", "Courtroom scenes in TV",
-    "Dishes by famous chefs", "Epic sports comebacks", "Toys from the 80s", "Treasure hunt legends", "Urban legends we tell",
-    "Wine types we’ve tasted", "Space junk we’ve heard about", "Medieval castle tales", "Protest signs we’ve seen", "Internet memes we love",
-    "Rollerblading in the 90s", "Movie soundtrack hits", "Monster sightings in lore", "Celebrity breakup gossip", "Ancient Olympic games",
-    "Fast food menu hacks", "Victorian ghost stories", "Whistleblowers in the news", "Arcade game classics", "Weird laws we laugh at",
-    "Books banned in school", "Extreme weather we’ve seen", "Emoji meanings we use", "Magicians we’ve watched", "Cursed movie rumors",
-    "Scientists we’ve heard of", "Beauty trends we’ve tried", "Plane crash stories", "Comedy teams we love", "Lost movies found again",
-    "Soda brands we drink", "Daredevil stunts on TV", "Secret clubs we’ve heard of", "Album covers we know", "Roller derby fun facts",
-    "Book rivalries we’ve read", "Retro fashion we’ve worn", "Bank robbery stories", "Popcorn flavors we’ve tried", "TV shows that got canceled",
-    "Recipes from grandma", "Cartoon voices we know", "Skateboarding tricks we’ve seen", "Missing person mysteries", "Train robbery legends",
-    "VR games we’ve played", "Theme park ride flops", "Bubble gum brands", "Spy tricks in movies", "Sibling fights in history",
-    "Pinball game themes", "Courtroom TV moments", "Firework show stories", "Celebrity pet names", "Yo-yo tricks we’ve tried",
-    "Movie car chase scenes", "Hot sauce brands", "Prison escape stories", "Kite flying fun", "Stunt doubles in films",
-    "Ice cream flavors we love", "Survival shows we watch", "Graffiti tags we’ve seen", "Monster truck crashes", "Jigsaw puzzle fun",
-    "Celebrity nicknames we know", "Karaoke songs we sing", "TV cliffhanger endings", "Glow stick party tricks", "Circus acts we’ve seen",
-    "Slapstick comedy gags", "Reality TV meltdowns", "Breakdance battles on TV", "Celebrity tattoo stories", "Snow globe scenes",
-    "Movie bloopers we’ve laughed at", "Fortune cookie sayings", "TV theme song hits", "Hacky sack games", "Stunt fails on video",
-    "Rubber duck designs", "Celebrity pranks we’ve seen", "Yo-yo moves we know", "TV spin-offs we’ve watched", "Frisbee games we’ve played",
-    "Movie props we recognize", "Trick-or-treat stories", "Celebrity feuds in the news", "Glow-in-the-dark toys", "TV reboots we’ve seen",
-    "Jump rope rhymes", "Movie poster art", "Silly string pranks", "Celebrity impersonators on TV", "Dodgeball games we’ve played",
-    "TV crossover episodes", "Water balloon fight stories", "Movie trailer lines we know", "Pogo stick fun", "Celebrity book deals",
-    "Hacky sack tricks we’ve tried", "Movie set mishaps", "Slinky toy fun", "TV award show moments", "Hula hoop games",
-    "Celebrity cameos we’ve spotted", "Paper airplane games", "Movie opening scenes we love", "Yo-yo contest stories", "TV finale surprises",
-    "Bubble wrap popping fun", "Celebrity roast jokes", "Kite surfing crashes", "Movie sequel flops", "Bouncy ball games",
-    "TV pilot episodes we’ve seen", "Glow stick rave stories", "Movie villain deaths", "Hopscotch games we played", "Celebrity scandals we know",
-    "Taffy candy flavors", "Movie monster looks", "Limbo dance parties", "TV guest stars we love", "Pinata party stories",
-    "Movie dance scene hits", "Twister game nights", "Celebrity arrest headlines", "Balloon animal fun", "TV show locations we know",
-    "Tug-of-war games", "Movie fight scenes we love", "Jacks game tricks", "Celebrity apology clips", "Yo-yo fad stories",
-    "Movie costumes we recognize", "Hoppy taw fun", "TV show drama moments", "Fidget spinner crazes", "Movie taglines we quote",
-    "Kite fighting stories", "Celebrity wedding gossip", "Silly putty play", "TV catchphrases we say", "Water gun fight tales",
-    "Movie chase music hits", "Hacky sack champs", "Celebrity ads we’ve seen", "Bubble blowing fun", "TV show props we know",
-    "Jump rope games we played", "Movie cliffhanger scenes", "Dodgeball rule twists", "Celebrity lawsuit news", "Slinky race fun"
-]
+# List of random trivia topics (empty for you to fill)
+RANDOM_TOPICS = []
 
 # List of emojis for player icons
 PLAYER_EMOJIS = [
@@ -106,11 +50,11 @@ genai.configure(api_key=GEMINI_API_KEY)
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
 # Configure session to use cookies and ensure compatibility with Heroku
-app.config['SESSION_TYPE'] = 'filesystem'  # Default, but can be changed to 'redis' for Heroku
-app.config['SESSION_COOKIE_SECURE'] = True  # Use HTTPS on Heroku
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)  # Keep session for 30 minutes
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 
 # Handle DATABASE_URL from Heroku
 import urllib.parse
@@ -148,7 +92,7 @@ def cleanup_inactive_games():
         try:
             with app.app_context():
                 now = datetime.utcnow()
-                inactive_threshold = now - timedelta(minutes=2)  # 2 minutes of inactivity
+                inactive_threshold = now - timedelta(minutes=2)
                 inactive_games = Game.query.filter(Game.last_activity < inactive_threshold).all()
                 if not inactive_games:
                     logger.debug("No inactive games found for cleanup")
@@ -179,7 +123,7 @@ def cleanup_inactive_games():
             logger.error(f"Error in cleanup_inactive_games: {str(e)}")
             if 'db' in locals():
                 db.session.rollback()
-        socketio.sleep(60)  # Check every minute
+        socketio.sleep(60)
 
 # Start the cleanup task
 socketio.start_background_task(cleanup_inactive_games)
@@ -198,11 +142,11 @@ def update_game_activity(game_id):
         db.session.rollback()
         raise
 
-# Recommendation 3: Topic Recommendation Algorithm
+# Recommendation 3: Topic Recommendation Algorithm (for placeholder text)
 def recommend_topic(game_id, username):
     player = Player.query.filter_by(game_id=game_id, username=username).first()
     if not player:
-        return "Enter a topic of your choice"
+        return "Enter a topic (e.g., Science, History, Movies)"
 
     # Fetch all answers and questions for this player in the game
     answers_with_questions = db.session.query(Answer, Question).join(
@@ -214,7 +158,6 @@ def recommend_topic(game_id, username):
 
     topic_performance = {}
     for answer, question in answers_with_questions:
-        # Check if the answer matches the correct answer stored in Question
         if answer.answer == question.answer_text:
             # Extract topic heuristically from question text
             topic_match = re.search(r"about (.+?)[?.!]", question.question_text)
@@ -222,9 +165,15 @@ def recommend_topic(game_id, username):
             topic_performance[topic] = topic_performance.get(topic, 0) + 1
 
     if topic_performance:
-        recommended_topic = max(topic_performance, key=topic_performance.get)
-        return f"Recommended topic for you: {recommended_topic}"
-    return "Enter a topic of your choice"
+        # Find the max score
+        max_score = max(topic_performance.values())
+        # Get all topics with the max score
+        top_topics = [topic for topic, score in topic_performance.items() if score == max_score]
+        if len(top_topics) == 1:
+            return f"Try: {top_topics[0]}"
+        else:
+            return f"Try: {' or '.join(top_topics)}"
+    return "Enter a topic (e.g., Science, History, Movies)"
 
 @app.route('/')
 def welcome():
@@ -411,7 +360,7 @@ def get_trivia_question(topic):
     try:
         # Check average rating for the topic
         avg_rating = db.session.query(func.avg(Rating.rating)).join(Question).filter(Question.question_text.contains(topic)).scalar() or 5
-        if avg_rating < 2:  # Skip poorly rated topics
+        if avg_rating < 2:
             logger.debug(f"Topic '{topic}' has low rating ({avg_rating}), selecting random topic")
             topic = random.choice([t for t in RANDOM_TOPICS if t != topic])
 
@@ -499,7 +448,7 @@ def handle_join_game_room(data):
                     'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                     'status': game.status,
                     'current_player': Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first().username if game.status == 'in_progress' else None,
-                    'current_question': None
+                    'current_question': game.current_question
                 }, to=game_id)
             elif game.status == 'waiting' and Player.query.filter_by(game_id=game_id).count() < 10:
                 if Player.query.filter_by(game_id=game_id, username=username).first():
@@ -586,13 +535,11 @@ def handle_select_topic(data):
 
             max_attempts = 10
             for attempt in range(max_attempts):
+                # If topic is empty and 'Random Topic' was clicked, pick a truly random topic
                 if not topic or topic.strip() == "":
-                    topic = recommend_topic(game_id, username)
+                    topic = random.choice(RANDOM_TOPICS)
                     emit('random_topic_selected', {'topic': topic}, to=game_id)
-                    if topic.startswith("Recommended topic for you: "):
-                        topic = topic.replace("Recommended topic for you: ", "")
-                    elif topic == "Enter a topic of your choice":
-                        topic = random.choice(RANDOM_TOPICS)
+                # Otherwise, use the player-entered topic
 
                 question_data = get_trivia_question(topic)
                 question_text = question_data['question']
@@ -604,9 +551,9 @@ def handle_select_topic(data):
                 if not is_duplicate:
                     new_question = Question(game_id=game_id, question_text=question_text, answer_text=answer_text)
                     db.session.add(new_question)
-                    db.session.flush()  # Get the new_question.id before committing
+                    db.session.flush()
                     game.current_question = question_data
-                    game.current_question['question_id'] = new_question.id  # Store question ID
+                    game.current_question['question_id'] = new_question.id
                     game.question_start_time = datetime.utcnow()
                     db.session.commit()
 
@@ -623,10 +570,14 @@ def handle_select_topic(data):
                     logger.debug(f"Attempt {attempt + 1} failed: Duplicate question or answer found")
 
             emit('error', {'message': "Couldn't generate a unique question after 10 attempts. Try another topic."}, to=game_id)
+        else:
+            # Send placeholder recommendation if not their turn
+            recommendation = recommend_topic(game_id, username)
+            emit('update_placeholder', {'placeholder': recommendation}, to=request.sid)
 
 def question_timer(game_id):
     import time
-    time.sleep(30)  # 30-second timeout
+    time.sleep(30)
     with app.app_context():
         game = Game.query.filter_by(id=game_id).first()
         if game and game.status == 'in_progress':
@@ -666,7 +617,6 @@ def question_timer(game_id):
                         'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                         'question_id': current_question.id
                     }, to=game_id)
-                    # Recommendation 5: Request feedback after results
                     emit('request_feedback', {'question_id': current_question.id}, to=game_id)
                     db.session.query(Answer).filter_by(game_id=game_id, question_id=current_question.id).delete()
                     db.session.commit()
@@ -735,7 +685,6 @@ def handle_submit_answer(data):
                         'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                         'question_id': current_question.id
                     }, to=game_id)
-                    # Recommendation 5: Request feedback after results
                     emit('request_feedback', {'question_id': current_question.id}, to=game_id)
                     db.session.query(Answer).filter_by(game_id=game_id, question_id=current_question.id).delete()
                     db.session.commit()
@@ -773,7 +722,6 @@ def handle_submit_answer(data):
                         'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                         'question_id': current_question.id
                     }, to=game_id)
-                    # Recommendation 5: Request feedback after results
                     emit('request_feedback', {'question_id': current_question.id}, to=game_id)
                     db.session.query(Answer).filter_by(game_id=game_id, question_id=current_question.id).delete()
                     db.session.commit()
@@ -785,6 +733,7 @@ def handle_submit_answer(data):
 # Recommendation 5: Handle feedback submission
 @socketio.on('submit_feedback')
 def handle_feedback(data):
+    game_id = data.get('game_id')  # Added to match client emit
     question_id = data.get('question_id')
     username = data.get('username')
     rating = data.get('rating')
@@ -811,8 +760,13 @@ def handle_disconnect():
                 player.disconnected = True
                 db.session.commit()
                 emit('player_disconnected', {'username': username}, to=game.id)
+                emit('player_left', {  # Added to match your game.html expectation
+                    'username': username,
+                    'players': [p.username for p in Player.query.filter_by(game_id=game.id).all()],
+                    'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game.id).all()}
+                }, to=game.id)
                 if (game.status == 'in_progress' and 
-                    Player.query.filter_by(game_id=game.id).offset(game.current_player_index).first().username == username):
+                    Player.query.filter_by(game.id).offset(game.current_player_index).first().username == username):
                     next_player = get_next_active_player(game.id)
                     if next_player:
                         game.current_player_index = Player.query.filter_by(game.id).all().index(next_player)
