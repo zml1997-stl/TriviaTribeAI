@@ -14,6 +14,7 @@ import logging
 from models import db, migrate, Game, Player, Question, Answer
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -104,6 +105,12 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
+# Configure session to use cookies and ensure compatibility with Heroku
+app.config['SESSION_TYPE'] = 'filesystem'  # Default, but can be changed to 'redis' for Heroku
+app.config['SESSION_COOKIE_SECURE'] = True  # Use HTTPS on Heroku
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)  # Keep session for 30 minutes
 
 # Handle DATABASE_URL from Heroku
 import urllib.parse
@@ -180,7 +187,8 @@ def cleanup_inactive_games():
 # Start the cleanup task
 socketio.start_background_task(cleanup_inactive_games)
 
-# Helper function to update last_activity for a game
+# Helper function to update last_activity for a game with retry logic
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
 def update_game_activity(game_id):
     try:
         game = Game.query.filter_by(id=game_id).first()
@@ -191,6 +199,7 @@ def update_game_activity(game_id):
     except Exception as e:
         logger.error(f"Error updating last_activity for game {game_id}: {str(e)}")
         db.session.rollback()
+        raise
 
 @app.route('/')
 def welcome():
@@ -209,6 +218,7 @@ def play():
     return render_template('index.html')
 
 @app.route('/create_game', methods=['POST'])
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
 def create_game():
     username = request.form.get('username')
     if not username:
@@ -216,31 +226,38 @@ def create_game():
 
     # Check if the username is already in use in this game session
     game_id = generate_game_id()
-    existing_player = Player.query.filter_by(game_id=game_id, username=username).first()
-    if existing_player:
-        return render_template('index.html', error="Username already taken in this game session. Please choose a different name.")
-
     try:
-        new_game = Game(id=game_id, host=username, status='waiting')
-        db.session.add(new_game)
-        db.session.flush()  # Get the game ID assigned by the database
+        with app.app_context():
+            existing_player = Player.query.filter_by(game_id=game_id, username=username).first()
+            if existing_player:
+                return render_template('index.html', error="Username already taken in this game session. Please choose a different name.")
 
-        new_player = Player(game_id=game_id, username=username, score=0, emoji=random.choice(PLAYER_EMOJIS), disconnected=False)
-        db.session.add(new_player)
-        db.session.commit()
+            new_game = Game(id=game_id, host=username, status='waiting')
+            db.session.add(new_game)
+            db.session.flush()  # Get the game ID assigned by the database
 
-        session['game_id'] = game_id
-        session['username'] = username
-        
-        # Update last_activity after creating the game
-        update_game_activity(game_id)
-        return redirect(url_for('game', game_id=game_id))
+            new_player = Player(game_id=game_id, username=username, score=0, emoji=random.choice(PLAYER_EMOJIS), disconnected=False)
+            db.session.add(new_player)
+            db.session.commit()
+
+            session['game_id'] = game_id
+            session['username'] = username
+            session.permanent = True  # Make session persistent for 30 minutes
+            
+            # Update last_activity after creating the game
+            update_game_activity(game_id)
+            logger.info(f"Game {game_id} created by {username}")
+            return redirect(url_for('game', game_id=game_id))
     except SQLAlchemyError as e:
         db.session.rollback()
         logger.error(f"Error creating game: {str(e)}")
         return render_template('index.html', error="An error occurred while creating the game. Please try again.")
+    except Exception as e:
+        logger.error(f"Unexpected error in create_game: {str(e)}")
+        return render_template('index.html', error="An unexpected error occurred. Please try again.")
 
 @app.route('/join_game', methods=['POST'])
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
 def join_game():
     username = request.form.get('username')
     game_id = request.form.get('game_id')
@@ -248,93 +265,126 @@ def join_game():
     if not username or not game_id:
         return render_template('index.html', error="Username and Game ID are required")
 
-    game = Game.query.filter_by(id=game_id).first()
-    if not game:
-        return render_template('index.html', error="Game not found")
-
-    # Allow rejoining only if the player was already in the game
-    existing_player = Player.query.filter_by(game_id=game_id, username=username).first()
-    if existing_player:
-        existing_player.disconnected = False
-        db.session.commit()
-        session['game_id'] = game_id
-        session['username'] = username
-        update_game_activity(game_id)
-        return redirect(url_for('game', game_id=game_id))
-    
-    # Block new players if game is in progress or full
-    if game.status != 'waiting' or Player.query.filter_by(game_id=game_id).count() >= 10:
-        return render_template('index.html', error="Game already in progress or full")
-
-    # Check if the username is already in use in this game session
-    if Player.query.filter_by(game_id=game_id, username=username).first():
-        return render_template('index.html', error="Username already taken in this game session. Please choose a different name.")
-
     try:
-        available_emojis = [e for e in PLAYER_EMOJIS if e not in [p.emoji for p in Player.query.filter_by(game_id=game_id).all()]]
-        new_player = Player(game_id=game_id, username=username, score=0, emoji=random.choice(available_emojis) if available_emojis else random.choice(PLAYER_EMOJIS), disconnected=False)
-        db.session.add(new_player)
-        db.session.commit()
-        session['game_id'] = game_id
-        session['username'] = username
-        update_game_activity(game_id)
-        return redirect(url_for('game', game_id=game_id))
+        with app.app_context():
+            game = Game.query.filter_by(id=game_id).first()
+            if not game:
+                return render_template('index.html', error="Game not found")
+
+            # Allow rejoining only if the player was already in the game
+            existing_player = Player.query.filter_by(game_id=game_id, username=username).first()
+            if existing_player:
+                existing_player.disconnected = False
+                db.session.commit()
+                session['game_id'] = game_id
+                session['username'] = username
+                session.permanent = True
+                update_game_activity(game_id)
+                logger.info(f"Player {username} rejoined game {game_id}")
+                return redirect(url_for('game', game_id=game_id))
+            
+            # Block new players if game is in progress or full
+            if game.status != 'waiting' or Player.query.filter_by(game_id=game_id).count() >= 10:
+                return render_template('index.html', error="Game already in progress or full")
+
+            # Check if the username is already in use in this game session
+            if Player.query.filter_by(game_id=game_id, username=username).first():
+                return render_template('index.html', error="Username already taken in this game session. Please choose a different name.")
+
+            available_emojis = [e for e in PLAYER_EMOJIS if e not in [p.emoji for p in Player.query.filter_by(game_id=game_id).all()]]
+            new_player = Player(game_id=game_id, username=username, score=0, emoji=random.choice(available_emojis) if available_emojis else random.choice(PLAYER_EMOJIS), disconnected=False)
+            db.session.add(new_player)
+            db.session.commit()
+            session['game_id'] = game_id
+            session['username'] = username
+            session.permanent = True
+            update_game_activity(game_id)
+            logger.info(f"Player {username} joined game {game_id}")
+            return redirect(url_for('game', game_id=game_id))
     except SQLAlchemyError as e:
         db.session.rollback()
         logger.error(f"Error joining game: {str(e)}")
         return render_template('index.html', error="An error occurred while joining the game. Please try again.")
+    except Exception as e:
+        logger.error(f"Unexpected error in join_game: {str(e)}")
+        return render_template('index.html', error="An unexpected error occurred. Please try again.")
 
 @app.route('/game/<game_id>')
 def game(game_id):
-    game = Game.query.filter_by(id=game_id).first()
-    if not game:
+    try:
+        with app.app_context():
+            game = Game.query.filter_by(id=game_id).first()
+            if not game:
+                logger.warning(f"Game {game_id} not found, redirecting to welcome")
+                session.pop('game_id', None)
+                session.pop('username', None)
+                return redirect(url_for('welcome'))
+            
+            username = session.get('username')
+            if not username or not Player.query.filter_by(game_id=game_id, username=username).first():
+                logger.warning(f"Username {username} not found in game {game_id}, redirecting to welcome")
+                session.pop('game_id', None)
+                session.pop('username', None)
+                return redirect(url_for('welcome'))
+            
+            update_game_activity(game_id)
+            logger.debug(f"Rendering game {game_id} for {username}")
+            return render_template('game.html', game_id=game_id, username=username, is_host=(username == game.host))
+    except Exception as e:
+        logger.error(f"Error in game route for game {game_id}: {str(e)}")
         return redirect(url_for('welcome'))
-    
-    username = session.get('username')
-    if not username or not Player.query.filter_by(game_id=game_id, username=username).first():
-        return redirect(url_for('welcome'))
-    
-    update_game_activity(game_id)
-    return render_template('game.html', game_id=game_id, username=username, is_host=(username == game.host))
 
 @app.route('/final_scoreboard/<game_id>')
 def final_scoreboard(game_id):
-    game = Game.query.filter_by(id=game_id).first()
-    if not game:
-        return redirect(url_for('welcome'))
-    players = Player.query.filter_by(game_id=game_id).all()
-    player_scores = {p.username: p.score for p in players}
-    player_emojis = {p.username: p.emoji for p in players}
+    try:
+        with app.app_context():
+            game = Game.query.filter_by(id=game_id).first()
+            if not game:
+                logger.warning(f"Game {game_id} not found for final scoreboard, redirecting to welcome")
+                return redirect(url_for('welcome'))
+            players = Player.query.filter_by(game_id=game_id).all()
+            player_scores = {p.username: p.score for p in players}
+            player_emojis = {p.username: p.emoji for p in players}
 
-    update_game_activity(game_id)
-    return render_template('final_scoreboard.html', game_id=game_id, scores=player_scores, player_emojis=player_emojis)
+            update_game_activity(game_id)
+            return render_template('final_scoreboard.html', game_id=game_id, scores=player_scores, player_emojis=player_emojis)
+    except Exception as e:
+        logger.error(f"Error in final_scoreboard for game {game_id}: {str(e)}")
+        return redirect(url_for('welcome'))
 
 @app.route('/reset_game/<game_id>', methods=['POST'])
+@retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
 def reset_game(game_id):
-    game = Game.query.filter_by(id=game_id).first()
-    if not game:
-        return jsonify({'error': 'Game not found'}), 404
-    
-    game.status = 'waiting'
-    game.current_player_index = 0
-    game.question_start_time = None
-    db.session.query(Question).filter_by(game_id=game_id).delete()
-    db.session.query(Answer).filter_by(game_id=game_id).delete()
-    players = Player.query.filter_by(game_id=game_id).all()
-    for player in players:
-        player.score = 0
-        player.disconnected = False
-    db.session.commit()
+    try:
+        with app.app_context():
+            game = Game.query.filter_by(id=game_id).first()
+            if not game:
+                logger.warning(f"Game {game_id} not found for reset")
+                return jsonify({'error': 'Game not found'}), 404
+            
+            game.status = 'waiting'
+            game.current_player_index = 0
+            game.question_start_time = None
+            db.session.query(Question).filter_by(game_id=game_id).delete()
+            db.session.query(Answer).filter_by(game_id=game_id).delete()
+            players = Player.query.filter_by(game_id=game_id).all()
+            for player in players:
+                player.score = 0
+                player.disconnected = False
+            db.session.commit()
 
-    logger.debug(f"Game {game_id} reset by request")
-    socketio.emit('game_reset', {
-        'players': [p.username for p in players],
-        'scores': {p.username: p.score for p in players},
-        'player_emojis': {p.username: p.emoji for p in players}
-    }, to=game_id)
-    
-    update_game_activity(game_id)
-    return Response(status=200)
+            logger.debug(f"Game {game_id} reset by request")
+            socketio.emit('game_reset', {
+                'players': [p.username for p in players],
+                'scores': {p.username: p.score for p in players},
+                'player_emojis': {p.username: p.emoji for p in players}
+            }, to=game_id)
+            
+            update_game_activity(game_id)
+            return Response(status=200)
+    except Exception as e:
+        logger.error(f"Error resetting game {game_id}: {str(e)}")
+        return jsonify({'error': 'Failed to reset game'}), 500
 
 def get_trivia_question(topic):
     try:
@@ -452,25 +502,42 @@ def handle_start_game(data):
     with app.app_context():
         try:
             game = Game.query.filter_by(id=game_id).first()
-            if game and username == game.host and game.status == 'waiting':
-                game.status = 'in_progress'
-                db.session.commit()
-                current_player = Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first()
-                if current_player.disconnected:
-                    current_player = get_next_active_player(game_id)
-                logger.debug(f"Game {game_id} started by host {username}, current player: {current_player.username}")
-                
-                emit('game_started', {
-                    'current_player': current_player.username,
-                    'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                    'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-                    'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
-                }, to=game_id)
-                update_game_activity(game_id)
-            else:
-                logger.warning(f"Invalid start game request for game {game_id} by {username}")
+            if not game:
+                logger.warning(f"Game {game_id} not found for start_game")
+                emit('error', {'message': 'Game not found. Please create a new game.'}, to=game_id)
+                return
+
+            if username != game.host:
+                logger.warning(f"User {username} is not the host of game {game_id}")
+                emit('error', {'message': 'Only the host can start the game.'}, to=game_id)
+                return
+
+            if game.status != 'waiting':
+                logger.warning(f"Game {game_id} is not in waiting state, current status: {game.status}")
+                emit('error', {'message': 'Game cannot be started. It may already be in progress.'}, to=game_id)
+                return
+
+            # Optimize database queries and updates
+            game.status = 'in_progress'
+            db.session.commit()
+            current_player = Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first()
+            if current_player.disconnected:
+                current_player = get_next_active_player(game_id)
+            
+            players = Player.query.filter_by(game_id=game_id).all()
+            player_data = {
+                'current_player': current_player.username if current_player else None,
+                'players': [p.username for p in players],
+                'scores': {p.username: p.score for p in players},
+                'player_emojis': {p.username: p.emoji for p in players}
+            }
+            
+            logger.debug(f"Game {game_id} started by host {username}, current player: {current_player.username if current_player else 'None'}")
+            emit('game_started', player_data, to=game_id)
+            update_game_activity(game_id)
         except Exception as e:
             logger.error(f"Error starting game {game_id}: {str(e)}")
+            db.session.rollback()
             emit('error', {'message': 'Failed to start game. Please try again.'}, to=game_id)
 
 @socketio.on('select_topic')
