@@ -174,7 +174,7 @@ def suggest_random_topic(game_id):
     ).all()
 
     # Build a dictionary of rated topics with their average rating and count
-    rated_topics = {row.normalized_name: {'avg': row.avg_rating, 'count': row.rating_count} for row in topic_ratings}
+    rated_topics = {row.normalized_name: {'avg': float(row.avg_rating), 'count': row.rating_count} for row in topic_ratings}
 
     # Get all distinct topics used in questions for this game
     used_topic_ids = db.session.query(Question.topic_id.distinct()).filter(Question.game_id == game_id).all()
@@ -189,8 +189,8 @@ def suggest_random_topic(game_id):
 
     # Define candidate topics based on ratings and usage
     if num_rated_topics >= 3:
-        # After 3 topics are rated, filter out low-rated topics (avg < 2)
-        good_rated = [t for t, r in rated_topics.items() if r['avg'] >= 2]
+        # After 3 topics are rated, filter out topics with avg rating < 2
+        good_rated = [t for t, r in rated_topics.items() if r['avg'] >= 2 and r['count'] > 0]
         candidate_topics = [t for t in good_rated if t != last_topic]  # Exclude the last used topic
     else:
         # Before 3 topics are rated, use all rated topics but avoid the last one
@@ -212,8 +212,11 @@ def suggest_random_topic(game_id):
     # Final fallback: if no candidates, pick randomly from RANDOM_TOPICS excluding last topic
     if not candidate_topics:
         candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() != last_topic]
-    
-    # Return a random choice from candidates, or a random topic if something goes wrong
+
+    # Log for debugging
+    logger.debug(f"Game {game_id}: Rated topics: {rated_topics}, Used topics: {used_topics}, Last topic: {last_topic}, Candidates: {candidate_topics}")
+
+    # Return a random choice from candidates, or a random topic as a last resort
     return random.choice(candidate_topics) if candidate_topics else random.choice(RANDOM_TOPICS)
     
 @app.route('/')
