@@ -163,45 +163,53 @@ def get_player_top_topics(game_id, username, limit=3):
 
 # NEW: Suggest a random topic with adaptive logic
 def suggest_random_topic(game_id):
-    # Get all distinct topics used in questions for this game, ordered by recency
-    recent_questions = db.session.query(Question.topic_id.distinct()).filter(Question.game_id == game_id
-        ).join(Topic, Topic.id == Question.topic_id
-        ).order_by(Question.id.desc()
-        ).limit(5).all()  # Track the last 5 unique topics to avoid short-term repetition
-    recent_topics = [Topic.query.get(tid).normalized_name for (tid,) in recent_questions if tid is not None]
+    try:
+        # Get the last 5 distinct topics used in this game
+        recent_questions = db.session.query(Question.topic_id.distinct()
+            ).filter(Question.game_id == game_id
+            ).order_by(Question.id.desc()
+            ).limit(5).all()
+        recent_topic_ids = [tid for (tid,) in recent_questions if tid is not None]
+        recent_topics = [t.normalized_name for t in Topic.query.filter(Topic.id.in_(recent_topic_ids)).all()]
+    except Exception as e:
+        logger.error(f"Error fetching recent topics for game {game_id}: {str(e)}")
+        recent_topics = []  # Fallback to empty list if query fails
 
-    # Get topic ratings for this game
-    topic_ratings = db.session.query(
-        Topic.normalized_name,
-        func.avg(Rating.rating).label('avg_rating')
-    ).join(Rating, Rating.topic_id == Topic.id
-    ).filter(Rating.game_id == game_id
-    ).group_by(Topic.normalized_name
-    ).all()
-    rated_topics = {row.normalized_name: float(row.avg_rating) for row in topic_ratings}
+    try:
+        # Get topic ratings for this game
+        topic_ratings = db.session.query(
+            Topic.normalized_name,
+            func.avg(Rating.rating).label('avg_rating')
+        ).join(Rating, Rating.topic_id == Topic.id
+        ).filter(Rating.game_id == game_id
+        ).group_by(Topic.normalized_name
+        ).all()
+        rated_topics = {row.normalized_name: float(row.avg_rating) for row in topic_ratings}
+    except Exception as e:
+        logger.error(f"Error fetching ratings for game {game_id}: {str(e)}")
+        rated_topics = {}  # Fallback to empty dict if query fails
 
-    # Define a pool of candidate topics
-    # Start with all RANDOM_TOPICS, excluding recent ones
+    # Start with all RANDOM_TOPICS, exclude recent ones
     candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in recent_topics]
 
-    # Filter out poorly rated topics (avg < 2) if they’ve been rated
-    candidate_topics = [t for t in candidate_topics if t not in rated_topics or rated_topics[t] >= 2]
+    # Filter out poorly rated topics (avg < 2) if rated
+    if rated_topics:
+        candidate_topics = [t for t in candidate_topics if t not in rated_topics or rated_topics[t] >= 2]
 
-    # If no candidates remain (e.g., all rated low or recently used), widen the net
-    if not candidate_topics:
-        candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in recent_topics[-1:]]  # Exclude only the last topic
-        candidate_topics = [t for t in candidate_topics if t not in rated_topics or rated_topics[t] >= 1]  # Lower threshold to 1
-
-    # Final fallback: if still no candidates, just exclude the very last topic
-    if not candidate_topics:
-        last_topic = recent_topics[0] if recent_topics else None
+    # If no candidates, relax to just exclude the last topic
+    if not candidate_topics and recent_topics:
+        last_topic = recent_topics[0]  # Most recent topic
         candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() != last_topic]
+    
+    # Final fallback: use all RANDOM_TOPICS if still empty
+    if not candidate_topics:
+        candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS]
 
     # Log for debugging
     logger.debug(f"Game {game_id}: Recent topics: {recent_topics}, Rated topics: {rated_topics}, Candidates: {candidate_topics[:10]}... ({len(candidate_topics)} total)")
 
-    # Pick a random topic from the candidates
-    return random.choice(candidate_topics) if candidate_topics else random.choice(RANDOM_TOPICS)
+    # Always return a random choice
+    return random.choice(candidate_topics)
     
 @app.route('/')
 def welcome():
