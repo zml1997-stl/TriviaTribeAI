@@ -171,6 +171,7 @@ def suggest_random_topic(game_id, username=None):
 
     # Check for 3 incorrect answers in a row if username is available
     use_top_rated = False
+    top_rated_candidates = []
     if username:
         player = Player.query.filter_by(username=username, game_id=game_id).first()
         if player:
@@ -187,6 +188,25 @@ def suggest_random_topic(game_id, username=None):
                 )
                 if incorrect_streak:
                     use_top_rated = True
+                    try:
+                        # Get player's ratings, highest first
+                        top_rated = db.session.query(
+                            Topic.normalized_name,
+                            Rating.rating
+                        ).join(Rating, Rating.topic_id == Topic.id
+                        ).filter(Rating.game_id == game_id,
+                                 Rating.player_id == player.id
+                        ).order_by(Rating.rating.desc()
+                        ).all()
+                        if top_rated:
+                            # Use highest-rated topics (e.g., 5, 4, etc.), cap at 5
+                            top_rated_candidates = [t.normalized_name for t, r in top_rated if t in RANDOM_TOPICS][:5]
+                            logger.debug(f"Game {game_id}: Player {username} has 3 incorrect answers, top rated: {top_rated_candidates}")
+                        else:
+                            logger.debug(f"Game {game_id}: Player {username} has 3 incorrect answers but no ratings")
+                    except Exception as e:
+                        logger.error(f"Error fetching top rated topics for {username} in game {game_id}: {str(e)}")
+                        db.session.rollback()
 
     try:
         # Get the last 5 distinct topics used in this game
@@ -217,27 +237,9 @@ def suggest_random_topic(game_id, username=None):
         db.session.rollback()
         rated_topics = {}
 
-    # If 3 incorrect answers, prioritize player's top 5 rated topics
-    top_rated_candidates = []
-    if use_top_rated and username and player:
-        try:
-            top_rated = db.session.query(
-                Topic.normalized_name,
-                Rating.rating
-            ).join(Rating, Rating.topic_id == Topic.id
-            ).filter(Rating.game_id == game_id,
-                     Rating.player_id == player.id
-            ).order_by(Rating.rating.desc()
-            ).limit(5).all()
-            top_rated_candidates = [t.normalized_name for t, _ in top_rated if t in RANDOM_TOPICS]
-            logger.debug(f"Game {game_id}: Player {username} has 3 incorrect answers, top rated: {top_rated_candidates}")
-        except Exception as e:
-            logger.error(f"Error fetching top rated topics for {username} in game {game_id}: {str(e)}")
-            db.session.rollback()
-
     # Define candidates
     if top_rated_candidates:
-        # Use top-rated topics, ignoring recent_topics restriction
+        # Use top-rated topics after 3 incorrect answers, ignoring recent_topics restriction
         candidate_topics = top_rated_candidates
     else:
         # Normal logic: start with all RANDOM_TOPICS, exclude recent ones
@@ -524,39 +526,66 @@ def handle_request_player_top_topics(data):
     placeholder_text = get_player_top_topics(game_id, username)
     emit('player_top_topics', {'placeholder': placeholder_text}, to=request.sid)
 
-@socketio.on('select_topic')
+@socket.on('select_topic')
 def handle_select_topic(data):
-    game_id = data['game_id']
-    username = data['username']
-    topic = data['topic']
-    if topic.lower() == 'random':
-        topic = suggest_random_topic(game_id, username)
-    topic_obj = get_or_create_topic(topic)
-    with app.app_context():
+    with app.app_context():  # Ensure all DB operations run in Flask context
+        game_id = data['game_id']
+        username = data['username']
+        topic = data['topic'].lower()
+
+        # Fetch game and current player
         game = Game.query.filter_by(id=game_id).first()
+        if not game:
+            logger.error(f"Game {game_id} not found")
+            return
+
         current_player = Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first()
-        if game and username == current_player.username and game.status == 'in_progress':
-            if topic == "random":  # Triggered by "Random Topic" button
-                topic = suggest_random_topic(game_id)
-            elif not topic:  # Fallback for empty input
-                topic = random.choice(RANDOM_TOPICS)
-            topic_obj = get_or_create_topic(topic)
-            question_data = get_trivia_question(topic)
-            new_question = Question(game_id=game_id, topic_id=topic_obj.id, question_text=question_data['question'], answer_text=question_data['answer'])
-            db.session.add(new_question)
-            db.session.flush()
-            game.current_question = question_data
-            game.current_question['question_id'] = new_question.id
-            game.question_start_time = datetime.utcnow()
-            db.session.commit()
-            emit('question_ready', {
-                'question': question_data['question'],
-                'options': question_data['options'],
-                'topic': topic,
-                'question_id': new_question.id
-            }, to=game_id)
-            socketio.start_background_task(question_timer, game_id)
-            update_game_activity(game_id)
+        if not current_player:
+            logger.error(f"No current player at index {game.current_player_index} for game {game_id}")
+            return
+
+        # Validate: only current player in 'in_progress' game can select topic
+        if username != current_player.username or game.status != 'in_progress':
+            logger.warning(f"Unauthorized topic selection: {username} != {current_player.username} or status {game.status}")
+            return
+
+        # Determine topic
+        if topic == 'random':
+            topic = suggest_random_topic(game_id, username)
+        elif not topic:  # Fallback for empty input
+            topic = random.choice(RANDOM_TOPICS)
+
+        # Get or create topic and generate question
+        topic_obj = get_or_create_topic(topic)
+        question_data = get_trivia_question(topic)
+
+        # Save new question
+        new_question = Question(
+            game_id=game_id,
+            topic_id=topic_obj.id,
+            question_text=question_data['question'],
+            answer_text=question_data['answer']
+        )
+        db.session.add(new_question)
+        db.session.flush()  # Get new_question.id before commit
+
+        # Update game state
+        game.current_question = question_data
+        game.current_question['question_id'] = new_question.id
+        game.question_start_time = datetime.utcnow()
+        db.session.commit()
+
+        # Emit question to clients
+        emit('question_ready', {
+            'question': question_data['question'],
+            'options': question_data['options'],
+            'topic': topic,
+            'question_id': new_question.id
+        }, to=game_id)
+
+        # Start timer and update activity
+        socketio.start_background_task(question_timer, game_id)
+        update_game_activity(game_id)
 
 def question_timer(game_id):
     import time
