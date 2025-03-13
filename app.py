@@ -486,10 +486,8 @@ def handle_select_topic(data):
             logger.warning(f"Unauthorized topic selection: {username} != {current_player.username} or status {game.status}")
             return
 
-        if topic == 'random':
+        if not topic:  # Changed from topic == 'random' to not topic
             topic = suggest_random_topic(game_id, username)
-        elif not topic:
-            topic = random.choice(RANDOM_TOPICS)
 
         try:
             topic_obj = get_or_create_topic(topic)
