@@ -313,7 +313,7 @@ def reset_game(game_id):
             db.session.commit()
             socketio.emit('game_reset', {
                 'players': [p.username for p in players],
-                'scores': {p.username: p.score for p in players},  # Fixed: '}' instead of ']'
+                'scores': {p.username: p.score for p in players},
                 'player_emojis': {p.username: p.emoji for p in players}
             }, room=game_id, namespace='/')
             update_game_activity(game_id)
@@ -499,7 +499,7 @@ def handle_select_topic(data):
 
             game.current_question = question_data
             game.current_question['question_id'] = new_question.id
-            game.question_start_time = datetime.utcnow()
+            game.question_start_time = datetime.utcnow()  # Ensure this is set fresh
             db.session.commit()
 
             socketio.emit('question_ready', {
@@ -518,7 +518,7 @@ def handle_select_topic(data):
 
 def question_timer(game_id):
     import time
-    time.sleep(30)
+    time.sleep(30)  # Wait exactly 30 seconds
     with app.app_context():
         game = Game.query.filter_by(id=game_id).first()
         if not game or game.status != 'in_progress':
@@ -575,7 +575,9 @@ def handle_submit_answer(data):
         player = Player.query.filter_by(game_id=game_id, username=username).first()
         if game and player and game.status == 'in_progress' and game.current_question:
             time_elapsed = datetime.utcnow() - game.question_start_time
+            logger.debug(f"Game {game_id}, Player {username}: Time elapsed = {time_elapsed.total_seconds()}s, Answer = {answer}")
             if time_elapsed.total_seconds() > 30:
+                logger.debug(f"Game {game_id}: Time expired for {username}, setting answer to None")
                 answer = None
             if answer in ['A', 'B', 'C', 'D']:
                 option_index = ord(answer) - ord('A')
@@ -587,9 +589,11 @@ def handle_submit_answer(data):
                 new_answer = Answer(game_id=game_id, player_id=player.id, question_id=game.current_question['question_id'], answer=answer)
                 db.session.add(new_answer)
             db.session.commit()
+            logger.debug(f"Game {game_id}: Answer recorded for {username} as {answer}")
             socketio.emit('player_answered', {'username': username}, room=game_id, namespace='/')
             active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
             if Answer.query.filter_by(game_id=game_id, question_id=game.current_question['question_id']).count() == len(active_players):
+                logger.debug(f"Game {game_id}: All players answered, proceeding to results")
                 correct_answer = game.current_question['answer']
                 correct_players = [p for p in active_players if Answer.query.filter_by(game_id=game_id, player_id=p.id, question_id=game.current_question['question_id']).first().answer == correct_answer]
                 for p in correct_players:
