@@ -123,7 +123,7 @@
                                 </div>
                             </div>
                             
-                            <!-- Recommendation 5: Feedback Form -->
+                            <!-- Feedback Form -->
                             <div id="feedback-form" class="card mb-4" style="display: none;">
                                 <div class="card-header bg-warning">
                                     <h4 class="mb-0">Rate This Question</h4>
@@ -297,9 +297,6 @@
                 showResults(data); 
             });
             socket.on('game_ended', function(data) { endGame(data); });
-            socket.on('random_topic_selected', function(data) { 
-                document.getElementById('topic-display').textContent = data.topic; // Show the selected random topic
-            });
             socket.on('game_reset', function(data) { resetGame(data); });
             socket.on('error', function(data) {
                 console.error('Server error:', data.message);
@@ -323,6 +320,7 @@
                     leaveGameContainer.style.display = 'block';
                     if (data.current_player === username) {
                         topicSelection.style.display = 'block';
+                        socket.emit('request_player_top_topics', { game_id: gameId, username: username });
                     } else if (!data.current_question) {
                         const waitingDiv = document.createElement('div');
                         waitingDiv.id = 'waiting-for-topic';
@@ -347,6 +345,7 @@
                 if (data.next_player === username) {
                     topicSelection.style.display = 'block';
                     document.getElementById('topic-input').value = '';
+                    socket.emit('request_player_top_topics', { game_id: gameId, username: username });
                 } else {
                     const waitingDiv = document.createElement('div');
                     waitingDiv.id = 'waiting-for-topic';
@@ -372,9 +371,9 @@
                 updatePlayerList([...document.getElementById('player-list').children].map(li => li.textContent.split(' ')[1]), player_emojis);
             });
 
-            // Recommendation 5: Handle feedback request
+            // Handle feedback request
             socket.on('request_feedback', function(data) {
-                currentQuestionId = data.question_id;
+                currentQuestionId = data.question_id;  // Changed from data.topic_id to match app.py
                 feedbackForm.style.display = 'block';
                 document.getElementById('feedback-submitted').style.display = 'none';
                 document.querySelectorAll('.feedback-btn').forEach(btn => {
@@ -383,8 +382,8 @@
                 });
             });
 
-            // Recommendation 3: Update topic input placeholder
-            socket.on('update_placeholder', function(data) {
+            // NEW: Handle player-specific top topics
+            socket.on('player_top_topics', function(data) {
                 document.getElementById('topic-input').placeholder = data.placeholder;
             });
         }
@@ -414,8 +413,9 @@
                 loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
                 document.querySelector('.card-body').appendChild(loadingDiv);
             });
+            // NEW: Updated random topic button to use adaptive logic
             document.getElementById('random-topic-btn').addEventListener('click', function() {
-                socket.emit('select_topic', { game_id: gameId, username: username, topic: '' });
+                socket.emit('select_topic', { game_id: gameId, username: username, topic: 'random' });
                 topicSelection.style.display = 'none';
                 const loadingDiv = document.createElement('div');
                 loadingDiv.id = 'loading-question';
@@ -463,14 +463,14 @@
                 window.muteToggle();
             });
 
-            // Recommendation 5: Feedback button listeners
+            // Feedback button listeners
             document.querySelectorAll('.feedback-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const rating = parseInt(this.getAttribute('data-rating'));
                     socket.emit('submit_feedback', { 
-                        game_id: gameId,  // Added to match server expectation
+                        game_id: gameId,
                         username: username, 
-                        question_id: currentQuestionId, 
+                        topic_id: currentQuestionId,  // Changed to topic_id to match app.py
                         rating: rating 
                     });
                     this.classList.add('active');
@@ -517,6 +517,7 @@
             if (data.current_player === username) {
                 topicSelection.style.display = 'block';
                 document.getElementById('topic-input').value = '';
+                socket.emit('request_player_top_topics', { game_id: gameId, username: username });
             } else {
                 const waitingDiv = document.createElement('div');
                 waitingDiv.id = 'waiting-for-topic';
@@ -657,6 +658,7 @@
                 if (nextPlayer === username) {
                     topicSelection.style.display = 'block';
                     document.getElementById('topic-input').value = '';
+                    socket.emit('request_player_top_topics', { game_id: gameId, username: username });
                 } else {
                     const waitingDiv = document.createElement('div');
                     waitingDiv.id = 'waiting-for-topic';
