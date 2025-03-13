@@ -163,60 +163,44 @@ def get_player_top_topics(game_id, username, limit=3):
 
 # NEW: Suggest a random topic with adaptive logic
 def suggest_random_topic(game_id):
-    # Query all topic ratings for the game
+    # Get all distinct topics used in questions for this game, ordered by recency
+    recent_questions = db.session.query(Question.topic_id.distinct()).filter(Question.game_id == game_id
+        ).join(Topic, Topic.id == Question.topic_id
+        ).order_by(Question.id.desc()
+        ).limit(5).all()  # Track the last 5 unique topics to avoid short-term repetition
+    recent_topics = [Topic.query.get(tid).normalized_name for (tid,) in recent_questions if tid is not None]
+
+    # Get topic ratings for this game
     topic_ratings = db.session.query(
         Topic.normalized_name,
-        func.avg(Rating.rating).label('avg_rating'),
-        func.count(Rating.id).label('rating_count')
+        func.avg(Rating.rating).label('avg_rating')
     ).join(Rating, Rating.topic_id == Topic.id
     ).filter(Rating.game_id == game_id
     ).group_by(Topic.normalized_name
     ).all()
+    rated_topics = {row.normalized_name: float(row.avg_rating) for row in topic_ratings}
 
-    # Build a dictionary of rated topics with their average rating and count
-    rated_topics = {row.normalized_name: {'avg': float(row.avg_rating), 'count': row.rating_count} for row in topic_ratings}
+    # Define a pool of candidate topics
+    # Start with all RANDOM_TOPICS, excluding recent ones
+    candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in recent_topics]
 
-    # Get all distinct topics used in questions for this game
-    used_topic_ids = db.session.query(Question.topic_id.distinct()).filter(Question.game_id == game_id).all()
-    used_topics = [Topic.query.get(tid).normalized_name for (tid,) in used_topic_ids if tid is not None]
+    # Filter out poorly rated topics (avg < 2) if they’ve been rated
+    candidate_topics = [t for t in candidate_topics if t not in rated_topics or rated_topics[t] >= 2]
 
-    # Count distinct rated topics
-    num_rated_topics = len(rated_topics)
-
-    # Get the last used topic to avoid immediate repetition
-    last_question = db.session.query(Question).filter(Question.game_id == game_id).order_by(Question.id.desc()).first()
-    last_topic = last_question.topic.normalized_name if last_question and last_question.topic else None
-
-    # Define candidate topics based on ratings and usage
-    if num_rated_topics >= 3:
-        # After 3 topics are rated, filter out topics with avg rating < 2
-        good_rated = [t for t, r in rated_topics.items() if r['avg'] >= 2 and r['count'] > 0]
-        candidate_topics = [t for t in good_rated if t != last_topic]  # Exclude the last used topic
-    else:
-        # Before 3 topics are rated, use all rated topics but avoid the last one
-        candidate_topics = [t for t in rated_topics.keys() if t != last_topic]
-
-    # If no good rated topics are available, include unrated but previously used topics
+    # If no candidates remain (e.g., all rated low or recently used), widen the net
     if not candidate_topics:
-        unrated_used = [t for t in used_topics if t not in rated_topics and t != last_topic]
-        candidate_topics.extend(unrated_used)
+        candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in recent_topics[-1:]]  # Exclude only the last topic
+        candidate_topics = [t for t in candidate_topics if t not in rated_topics or rated_topics[t] >= 1]  # Lower threshold to 1
 
-    # If still no candidates, pick from unused topics in RANDOM_TOPICS
+    # Final fallback: if still no candidates, just exclude the very last topic
     if not candidate_topics:
-        unused_topics = [t.lower().strip() for t in RANDOM_TOPICS 
-                         if t.lower().strip() not in rated_topics 
-                         and t.lower().strip() not in used_topics 
-                         and t.lower().strip() != last_topic]
-        candidate_topics = unused_topics
-
-    # Final fallback: if no candidates, pick randomly from RANDOM_TOPICS excluding last topic
-    if not candidate_topics:
+        last_topic = recent_topics[0] if recent_topics else None
         candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() != last_topic]
 
     # Log for debugging
-    logger.debug(f"Game {game_id}: Rated topics: {rated_topics}, Used topics: {used_topics}, Last topic: {last_topic}, Candidates: {candidate_topics}")
+    logger.debug(f"Game {game_id}: Recent topics: {recent_topics}, Rated topics: {rated_topics}, Candidates: {candidate_topics[:10]}... ({len(candidate_topics)} total)")
 
-    # Return a random choice from candidates, or a random topic as a last resort
+    # Pick a random topic from the candidates
     return random.choice(candidate_topics) if candidate_topics else random.choice(RANDOM_TOPICS)
     
 @app.route('/')
