@@ -162,9 +162,34 @@ def get_player_top_topics(game_id, username, limit=3):
     return ", ".join([row.normalized_name for row in top_topics]) if top_topics else "Enter a topic or click Random Topic"
 
 # NEW: Suggest a random topic with adaptive logic
-def suggest_random_topic(game_id):
+def suggest_random_topic(game_id, username=None):
+    # Fetch game to determine current player if username not provided
+    game = Game.query.get(game_id)
+    if not username and game:
+        if game.players and 0 <= game.current_player_index < len(game.players):
+            username = game.players[game.current_player_index].username
+
+    # Check for 3 incorrect answers in a row if username is available
+    use_top_rated = False
+    if username:
+        player = Player.query.filter_by(username=username, game_id=game_id).first()
+        if player:
+            recent_answers = db.session.query(Answer, Question
+                ).join(Question, Question.id == Answer.question_id
+                ).filter(Answer.player_id == player.id,
+                         Answer.game_id == game_id
+                ).order_by(Question.id.desc()
+                ).limit(3).all()
+            if len(recent_answers) == 3:
+                incorrect_streak = all(
+                    a.answer.strip().lower() != q.answer_text.strip().lower()
+                    for a, q in recent_answers
+                )
+                if incorrect_streak:
+                    use_top_rated = True
+
     try:
-        # Get the last 5 distinct topics used in this game, fixing the DISTINCT/ORDER BY issue
+        # Get the last 5 distinct topics used in this game
         recent_questions = db.session.query(Question.topic_id, Question.id
             ).filter(Question.game_id == game_id
             ).distinct(Question.topic_id
@@ -174,11 +199,11 @@ def suggest_random_topic(game_id):
         recent_topics = [t.normalized_name for t in Topic.query.filter(Topic.id.in_(recent_topic_ids)).all()]
     except Exception as e:
         logger.error(f"Error fetching recent topics for game {game_id}: {str(e)}")
-        db.session.rollback()  # Roll back the transaction to recover
-        recent_topics = []  # Fallback to empty list
+        db.session.rollback()
+        recent_topics = []
 
     try:
-        # Get topic ratings for this game
+        # Get game-wide topic ratings (average across all players)
         topic_ratings = db.session.query(
             Topic.normalized_name,
             func.avg(Rating.rating).label('avg_rating')
@@ -189,29 +214,51 @@ def suggest_random_topic(game_id):
         rated_topics = {row.normalized_name: float(row.avg_rating) for row in topic_ratings}
     except Exception as e:
         logger.error(f"Error fetching ratings for game {game_id}: {str(e)}")
-        db.session.rollback()  # Roll back the transaction to recover
-        rated_topics = {}  # Fallback to empty dict
+        db.session.rollback()
+        rated_topics = {}
 
-    # Start with all RANDOM_TOPICS, exclude recent ones
-    candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in recent_topics]
+    # If 3 incorrect answers, prioritize player's top 5 rated topics
+    top_rated_candidates = []
+    if use_top_rated and username and player:
+        try:
+            top_rated = db.session.query(
+                Topic.normalized_name,
+                Rating.rating
+            ).join(Rating, Rating.topic_id == Topic.id
+            ).filter(Rating.game_id == game_id,
+                     Rating.player_id == player.id
+            ).order_by(Rating.rating.desc()
+            ).limit(5).all()
+            top_rated_candidates = [t.normalized_name for t, _ in top_rated if t in RANDOM_TOPICS]
+            logger.debug(f"Game {game_id}: Player {username} has 3 incorrect answers, top rated: {top_rated_candidates}")
+        except Exception as e:
+            logger.error(f"Error fetching top rated topics for {username} in game {game_id}: {str(e)}")
+            db.session.rollback()
 
-    # Filter out poorly rated topics (avg < 2) if rated
-    if rated_topics:
-        candidate_topics = [t for t in candidate_topics if t not in rated_topics or rated_topics[t] >= 2]
+    # Define candidates
+    if top_rated_candidates:
+        # Use top-rated topics, ignoring recent_topics restriction
+        candidate_topics = top_rated_candidates
+    else:
+        # Normal logic: start with all RANDOM_TOPICS, exclude recent ones
+        candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in recent_topics]
+        # Filter out poorly rated topics (avg < 2) if rated
+        if rated_topics:
+            candidate_topics = [t for t in candidate_topics if t not in rated_topics or rated_topics[t] >= 2]
 
-    # If no candidates, relax to just exclude the last topic
-    if not candidate_topics and recent_topics:
-        last_topic = recent_topics[0]  # Most recent topic
-        candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() != last_topic]
-    
-    # Final fallback: use all RANDOM_TOPICS if still empty
-    if not candidate_topics:
-        candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS]
+        # If no candidates, relax to just exclude the last topic
+        if not candidate_topics and recent_topics:
+            last_topic = recent_topics[0]
+            candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() != last_topic]
+
+        # Final fallback: use all RANDOM_TOPICS
+        if not candidate_topics:
+            candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS]
 
     # Log for debugging
     logger.debug(f"Game {game_id}: Recent topics: {recent_topics}, Rated topics: {rated_topics}, Candidates: {candidate_topics[:10]}... ({len(candidate_topics)} total)")
 
-    # Always return a random choice
+    # Return a random choice
     return random.choice(candidate_topics)
     
 @app.route('/')
@@ -479,9 +526,12 @@ def handle_request_player_top_topics(data):
 
 @socketio.on('select_topic')
 def handle_select_topic(data):
-    game_id = data.get('game_id')
-    username = data.get('username')
-    topic = data.get('topic')
+    game_id = data['game_id']
+    username = data['username']
+    topic = data['topic']
+    if topic.lower() == 'random':
+        topic = suggest_random_topic(game_id, username)
+    topic_obj = get_or_create_topic(topic)
     with app.app_context():
         game = Game.query.filter_by(id=game_id).first()
         current_player = Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first()
