@@ -20,6 +20,9 @@ class Game(db.Model):
     answers = db.relationship('Answer', backref='game', lazy=True, cascade='all, delete-orphan')
     ratings = db.relationship('Rating', backref='game', lazy=True, cascade='all, delete-orphan')
 
+    def __repr__(self):
+        return f'<Game {self.id}>'
+
 class Player(db.Model):
     __tablename__ = 'players'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -33,28 +36,57 @@ class Player(db.Model):
     answers = db.relationship('Answer', backref='player', lazy=True, cascade='all, delete-orphan')
     ratings = db.relationship('Rating', backref='player', lazy=True, cascade='all, delete-orphan')
 
+    def __repr__(self):
+        return f'<Player {self.username} in Game {self.game_id}>'
+
+class Topic(db.Model):
+    __tablename__ = 'topics'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    normalized_name = db.Column(db.String(255), unique=True, nullable=False)
+
+    # Relationship
+    questions = db.relationship('Question', backref='topic', lazy=True, cascade='all, delete-orphan')
+    ratings = db.relationship('Rating', backref='topic', lazy=True, cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<Topic {self.normalized_name}>'
+
 class Question(db.Model):
     __tablename__ = 'questions'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     game_id = db.Column(db.String(4), db.ForeignKey('games.id'), nullable=False)
+    topic_id = db.Column(db.Integer, db.ForeignKey('topics.id'), nullable=False)
     question_text = db.Column(db.Text, nullable=False)
     answer_text = db.Column(db.Text, nullable=False)
 
-    # Relationship for feedback
-    ratings = db.relationship('Rating', backref='question', lazy=True, cascade='all, delete-orphan')
+    # Relationships
+    answers = db.relationship('Answer', backref='question', lazy=True, cascade='all, delete-orphan')
+
+    def __repr__(self):
+        return f'<Question {self.id} for Game {self.game_id}>'
 
 class Answer(db.Model):
-    __tablename__ = 'answers'  # Added explicit table name for consistency
-    id = db.Column(db.Integer, primary_key=True)
-    game_id = db.Column(db.String(4), db.ForeignKey('games.id'), nullable=False)  # Fixed to 'games.id'
-    player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=False)  # Fixed to 'players.id'
+    __tablename__ = 'answers'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    game_id = db.Column(db.String(4), db.ForeignKey('games.id'), nullable=False)
+    player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=False)
     question_id = db.Column(db.Integer, db.ForeignKey('questions.id'), nullable=False)
     answer = db.Column(db.String(255))
+
+    def __repr__(self):
+        return f'<Answer by Player {self.player_id} for Question {self.question_id}>'
 
 class Rating(db.Model):
     __tablename__ = 'ratings'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     game_id = db.Column(db.String(4), db.ForeignKey('games.id'), nullable=False)
     player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=False)
-    question_id = db.Column(db.Integer, db.ForeignKey('questions.id'), nullable=False)
+    topic_id = db.Column(db.Integer, db.ForeignKey('topics.id'), nullable=False)
     rating = db.Column(db.Integer, nullable=False)  # 0-5 scale
+
+    __table_args__ = (
+        db.UniqueConstraint('game_id', 'player_id', 'topic_id', name='unique_rating_per_game_player_topic'),
+    )
+
+    def __repr__(self):
+        return f'<Rating {self.rating} by Player {self.player_id} for Topic {self.topic_id}>'
