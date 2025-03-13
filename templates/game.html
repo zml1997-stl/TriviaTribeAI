@@ -413,9 +413,8 @@
                 loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
                 document.querySelector('.card-body').appendChild(loadingDiv);
             });
-            // NEW: Updated random topic button to use adaptive logic
             document.getElementById('random-topic-btn').addEventListener('click', function() {
-                socket.emit('select_topic', { game_id: gameId, username: username, topic: 'random' });
+                socket.emit('select_topic', { game_id: gameId, username: username, topic: '' }); // Send empty topic to trigger random selection
                 topicSelection.style.display = 'none';
                 const loadingDiv = document.createElement('div');
                 loadingDiv.id = 'loading-question';
