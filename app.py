@@ -325,7 +325,7 @@ def reset_game(game_id):
 
 def get_trivia_question(topic):
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        model = genai.GenerativeModel('gemini-pro')  # Use a verified model name
         prompt = f"""
         Generate a trivia question about "{topic}" with a single, clear answer.
         Requirements:
@@ -345,8 +345,18 @@ def get_trivia_question(topic):
           }}
         """
         response = model.generate_content(prompt)
-        cleaned_text = response.text.replace('json', '').replace('', '').strip()
+        logger.debug(f"Raw response from Gemini: {response.text}")
+        cleaned_text = response.text.strip().replace('```json', '').replace('```', '')
+        logger.debug(f"Cleaned response: {cleaned_text}")
         return json.loads(cleaned_text)
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parsing error: {str(e)}")
+        return {
+            "question": f"What is a fact about {topic}?",
+            "answer": "Unable to generate",
+            "options": ["A", "B", "C", "D"],
+            "explanation": "Invalid response format from AI service."
+        }
     except Exception as e:
         logger.error(f"Error generating question: {str(e)}")
         return {
