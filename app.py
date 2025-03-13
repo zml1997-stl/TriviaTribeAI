@@ -526,7 +526,7 @@ def handle_request_player_top_topics(data):
     placeholder_text = get_player_top_topics(game_id, username)
     emit('player_top_topics', {'placeholder': placeholder_text}, to=request.sid)
 
-@socket.on('select_topic')
+@socketio.on('select_topic')
 def handle_select_topic(data):
     with app.app_context():  # Ensure all DB operations run in Flask context
         game_id = data['game_id']
