@@ -164,16 +164,18 @@ def get_player_top_topics(game_id, username, limit=3):
 # NEW: Suggest a random topic with adaptive logic
 def suggest_random_topic(game_id):
     try:
-        # Get the last 5 distinct topics used in this game
-        recent_questions = db.session.query(Question.topic_id.distinct()
+        # Get the last 5 distinct topics used in this game, fixing the DISTINCT/ORDER BY issue
+        recent_questions = db.session.query(Question.topic_id, Question.id
             ).filter(Question.game_id == game_id
+            ).distinct(Question.topic_id
             ).order_by(Question.id.desc()
             ).limit(5).all()
-        recent_topic_ids = [tid for (tid,) in recent_questions if tid is not None]
+        recent_topic_ids = [tid for (tid, _) in recent_questions if tid is not None]
         recent_topics = [t.normalized_name for t in Topic.query.filter(Topic.id.in_(recent_topic_ids)).all()]
     except Exception as e:
         logger.error(f"Error fetching recent topics for game {game_id}: {str(e)}")
-        recent_topics = []  # Fallback to empty list if query fails
+        db.session.rollback()  # Roll back the transaction to recover
+        recent_topics = []  # Fallback to empty list
 
     try:
         # Get topic ratings for this game
@@ -187,7 +189,8 @@ def suggest_random_topic(game_id):
         rated_topics = {row.normalized_name: float(row.avg_rating) for row in topic_ratings}
     except Exception as e:
         logger.error(f"Error fetching ratings for game {game_id}: {str(e)}")
-        rated_topics = {}  # Fallback to empty dict if query fails
+        db.session.rollback()  # Roll back the transaction to recover
+        rated_topics = {}  # Fallback to empty dict
 
     # Start with all RANDOM_TOPICS, exclude recent ones
     candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in recent_topics]
