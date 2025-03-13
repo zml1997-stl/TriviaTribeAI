@@ -8,3 +8,4 @@ gunicorn
 eventlet
 psycopg2-binary
 tenacity
+timeout-decorator
