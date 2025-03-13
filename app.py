@@ -325,7 +325,7 @@ def reset_game(game_id):
 
 def get_trivia_question(topic):
     try:
-        model = genai.GenerativeModel('gemini-pro')  # Use a verified model name
+        model = genai.GenerativeModel('gemini-2.0-flash')  # Use a verified model name
         prompt = f"""
         Generate a trivia question about "{topic}" with a single, clear answer.
         Requirements:
