@@ -389,7 +389,7 @@ def handle_join_game_room(data):
                 emit('player_rejoined', {
                     'username': username,
                     'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                    'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
+                    'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                     'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                     'status': game.status,
                     'current_player': Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first().username if game.status == 'in_progress' else None,
@@ -504,7 +504,7 @@ def question_timer(game_id):
                             'correct_players': [p.username for p in correct_players],
                             'next_player': next_player.username,
                             'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-                            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()],
+                            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                             'question_id': current_question.id,
                             'topic_id': current_question.topic_id
                         }, to=game_id)
@@ -560,7 +560,7 @@ def handle_submit_answer(data):
                             'correct_players': [p.username for p in correct_players],
                             'next_player': next_player.username,
                             'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
-                            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()],
+                            'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                             'question_id': current_question.id,
                             'topic_id': current_question.topic_id
                         }, to=game_id)
@@ -601,7 +601,7 @@ def handle_disconnect():
                 emit('player_left', {
                     'username': username,
                     'players': [p.username for p in Player.query.filter_by(game_id=game.id).all()],
-                    'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game.id).all()]
+                    'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game.id).all()}
                 }, to=game.id)
                 if game.status == 'in_progress' and Player.query.filter_by(game.id).offset(game.current_player_index).first().username == username:
                     next_player = get_next_active_player(game.id)
