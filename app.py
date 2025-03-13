@@ -14,6 +14,7 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.exc import SQLAlchemyError
 from tenacity import retry, stop_after_attempt, wait_fixed
 import timeout_decorator  # Requires: pip install timeout-decorator
+import threading
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -53,6 +54,9 @@ PLAYER_EMOJIS = [
     "😄", "😂", "😎", "🤓", "🎉", "🚀", "🌟", "🍕", "🎸", "🎮",
     "🏆", "💡", "🌍", "🎨", "📚", "🔥", "💎", "🐱", "🐶", "🌸"
 ]
+
+# Store active timers
+active_timers = {}
 
 def generate_game_id():
     while True:
@@ -165,7 +169,6 @@ def get_player_top_topics(game_id, username, limit=3):
 # Simplified random topic suggestion
 def suggest_random_topic(game_id, username=None):
     try:
-        # Get the last topic used in this game
         last_question = db.session.query(Question.topic_id
             ).filter(Question.game_id == game_id
             ).order_by(Question.id.desc()
@@ -176,7 +179,6 @@ def suggest_random_topic(game_id, username=None):
         db.session.rollback()
         last_topic = None
 
-    # Exclude last topic if it exists, otherwise use all topics
     candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() != (last_topic or "")]
     if not candidate_topics:
         candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS]
@@ -301,6 +303,11 @@ def reset_game(game_id):
             game = Game.query.filter_by(id=game_id).first()
             if not game:
                 return jsonify({'error': 'Game not found'}), 404
+            # Cancel any existing timer
+            if game_id in active_timers:
+                active_timers[game_id].cancel()
+                del active_timers[game_id]
+                logger.debug(f"Cancelled timer for game {game_id} on reset")
             game.status = 'waiting'
             game.current_player_index = 0
             game.question_start_time = None
@@ -325,7 +332,7 @@ def reset_game(game_id):
 @timeout_decorator.timeout(5, timeout_exception=TimeoutError)
 def get_trivia_question(topic):
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')  # Use a verified model name
+        model = genai.GenerativeModel('gemini-2.0-flash')
         prompt = f"""
         Generate a trivia question about "{topic}" with a single, clear answer.
         Requirements:
@@ -499,7 +506,7 @@ def handle_select_topic(data):
 
             game.current_question = question_data
             game.current_question['question_id'] = new_question.id
-            game.question_start_time = datetime.utcnow()  # Ensure this is set fresh
+            game.question_start_time = datetime.utcnow()
             db.session.commit()
 
             socketio.emit('question_ready', {
@@ -509,7 +516,16 @@ def handle_select_topic(data):
                 'question_id': new_question.id
             }, room=game_id, namespace='/')
 
-            socketio.start_background_task(question_timer, game_id)
+            # Cancel any existing timer for this game
+            if game_id in active_timers:
+                active_timers[game_id].cancel()
+                logger.debug(f"Cancelled existing timer for game {game_id}")
+            # Start new timer
+            timer = threading.Timer(30.0, question_timer, args=(game_id,))
+            active_timers[game_id] = timer
+            timer.start()
+            logger.debug(f"Started new 30s timer for game {game_id}")
+
             update_game_activity(game_id)
         except Exception as e:
             logger.error(f"Error generating question for topic {topic} in game {game_id}: {str(e)}")
@@ -517,14 +533,13 @@ def handle_select_topic(data):
             db.session.rollback()
 
 def question_timer(game_id):
-    import time
-    time.sleep(30)  # Wait exactly 30 seconds
     with app.app_context():
         game = Game.query.filter_by(id=game_id).first()
         if not game or game.status != 'in_progress':
-            logger.debug(f"Game {game_id} not found or not in progress, skipping question timer")
+            logger.debug(f"Game {game_id} not found or not in progress, timer aborted")
             return
 
+        logger.debug(f"Game {game_id}: 30s timer expired, processing answers")
         active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
         for player in active_players:
             if not Answer.query.filter_by(game_id=game_id, player_id=player.id, question_id=game.current_question['question_id']).first():
@@ -564,6 +579,9 @@ def question_timer(game_id):
                     db.session.query(Answer).filter_by(game_id=game_id, question_id=current_question.id).delete()
                     db.session.commit()
                     update_game_activity(game_id)
+        if game_id in active_timers:
+            del active_timers[game_id]
+            logger.debug(f"Timer for game {game_id} completed and removed")
 
 @socketio.on('submit_answer')
 def handle_submit_answer(data):
@@ -593,7 +611,10 @@ def handle_submit_answer(data):
             socketio.emit('player_answered', {'username': username}, room=game_id, namespace='/')
             active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
             if Answer.query.filter_by(game_id=game_id, question_id=game.current_question['question_id']).count() == len(active_players):
-                logger.debug(f"Game {game_id}: All players answered, proceeding to results")
+                logger.debug(f"Game {game_id}: All players answered, cancelling timer and proceeding to results")
+                if game_id in active_timers:
+                    active_timers[game_id].cancel()
+                    del active_timers[game_id]
                 correct_answer = game.current_question['answer']
                 correct_players = [p for p in active_players if Answer.query.filter_by(game_id=game_id, player_id=p.id, question_id=game.current_question['question_id']).first().answer == correct_answer]
                 for p in correct_players:
