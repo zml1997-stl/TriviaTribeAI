@@ -313,9 +313,9 @@ def reset_game(game_id):
             db.session.commit()
             socketio.emit('game_reset', {
                 'players': [p.username for p in players],
-                'scores': {p.username: p.score for p in players},
+                'scores': {p.username: p.score for p in players},  # Fixed: '}' instead of ']'
                 'player_emojis': {p.username: p.emoji for p in players}
-            }, room=game_id, namespace='/')  # Explicit namespace
+            }, room=game_id, namespace='/')
             update_game_activity(game_id)
             return Response(status=200)
     except Exception as e:
@@ -407,8 +407,8 @@ def handle_join_game_room(data):
                 socketio.emit('player_rejoined', {
                     'username': username,
                     'players': [p.username for p in Player.query.filter_by(game_id=game_id).all()],
-                    'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()],
-                    'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()],
+                    'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
+                    'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                     'status': game.status,
                     'current_player': Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first().username if game.status == 'in_progress' else None,
                     'current_question': game.current_question
@@ -444,7 +444,7 @@ def handle_start_game(data):
         socketio.emit('game_started', {
             'current_player': current_player.username if current_player else None,
             'players': [p.username for p in players],
-            'scores': {p.username: p.score for p in players],
+            'scores': {p.username: p.score for p in players},
             'player_emojis': {p.username: p.emoji for p in players}
         }, room=game_id, namespace='/')
         update_game_activity(game_id)
