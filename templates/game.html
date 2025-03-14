@@ -18,11 +18,11 @@
         <img src="{{ url_for('static', filename='logo.png') }}" alt="Trivia Tribe Logo">
     </header>
     <div class="container">
-        <div class="row justify-content-center mt-3">
+        <div class="row justify-content-center mt-2">
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        <div class="d-flex justify-content-between align-items-center">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap">
                             <h2 class="mb-0">Trivia Tribe</h2>
                             <div>
                                 <span class="badge bg-info">Game ID: <span id="game-id-display">{{ game_id }}</span></span>
@@ -31,19 +31,19 @@
                         </div>
                     </div>
                     
-                    <div class="card-body">
+                    <div class="card-body" style="padding-bottom: 3rem;">
                         <div id="waiting-lobby" class="text-center">
                             <h3>Waiting for Players</h3>
                             <p>Share the Game ID with friends to join!</p>
-                            <div class="player-list mb-4">
+                            <div class="player-list mb-3">
                                 <h4>Players:</h4>
                                 <ul id="player-list" class="list-group">
                                     <!-- Players will be added here dynamically -->
                                 </ul>
                             </div>
                             {% if is_host %}
-                            <button id="start-game-btn" class="btn btn-success btn-lg">Start Game</button>
-                            <div id="start-game-loading" class="text-center mt-3" style="display: none;">
+                            <button id="start-game-btn" class="btn btn-success">Start Game</button>
+                            <div id="start-game-loading" class="text-center mt-2" style="display: none;">
                                 <div class="spinner-border text-primary" role="status">
                                     <span class="visually-hidden">Starting game...</span>
                                 </div>
@@ -56,27 +56,27 @@
                         
                         <div id="topic-selection" style="display: none;">
                             <h3>Select a Topic</h3>
-                            <p>It's your turn to choose a topic for the trivia question!</p>
-                            <div class="mb-3">
-                                <input type="text" id="topic-input" class="form-control form-control-lg" placeholder="Enter a topic (e.g., Science, History, Movies)">
+                            <p>Choose a topic for the next question!</p>
+                            <div class="mb-2">
+                                <input type="text" id="topic-input" class="form-control" placeholder="Enter a topic (e.g., Science, History, Movies)">
                             </div>
                             <div class="d-grid gap-2 d-md-flex justify-content-md-center">
-                                <button id="submit-topic-btn" class="btn btn-primary btn-lg">Submit Topic</button>
-                                <button id="random-topic-btn" class="btn btn-secondary btn-lg">Random Topic</button>
+                                <button id="submit-topic-btn" class="btn btn-primary">Submit Topic</button>
+                                <button id="random-topic-btn" class="btn btn-secondary">Random Topic</button>
                             </div>
                         </div>
                         
                         <div id="question-display" style="display: none;">
-                            <div class="text-center mb-4">
+                            <div class="text-center mb-3">
                                 <span class="badge bg-secondary mb-2">Topic: <span id="topic-display"></span></span>
-                                <h3 id="question-text" class="mb-3"></h3>
-                                <div class="progress mb-3">
+                                <h3 id="question-text" class="mb-2"></h3>
+                                <div class="progress mb-2">
                                     <div id="timer-progress" class="progress-bar bg-danger" role="progressbar" style="width: 100%"></div>
                                 </div>
                             </div>
                             
                             <div class="answer-section">
-                                <div class="mb-3">
+                                <div class="mb-2">
                                     <label class="form-label">Select an Answer:</label>
                                     <div class="list-group">
                                         <button id="option-a" class="list-group-item list-group-item-action" data-prefix="A)"> <span id="option-a-text"></span></button>
@@ -85,10 +85,10 @@
                                         <button id="option-d" class="list-group-item list-group-item-action" data-prefix="D)"> <span id="option-d-text"></span></button>
                                     </div>
                                 </div>
-                                <button id="submit-answer-btn" class="btn btn-primary btn-lg">Submit Answer</button>
+                                <button id="submit-answer-btn" class="btn btn-primary">Submit Answer</button>
                             </div>
                             
-                            <div class="waiting-for-answers mt-4" style="display: none;">
+                            <div class="waiting-for-answers mt-3" style="display: none;">
                                 <p id="waiting-text">Waiting for other players to answer...</p>
                                 <div class="progress">
                                     <div id="answer-progress" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%"></div>
@@ -100,19 +100,21 @@
                         </div>
                         
                         <div id="results-display" style="display: none;">
-                            <h3 class="text-center mb-4">Round Results</h3>
+                            <h3 class="text-center mb-3">Round Results</h3>
                             
-                            <div class="card mb-4">
+                            <div class="card mb-3">
                                 <div class="card-header bg-info">
                                     <h4 class="mb-0">Correct Answer</h4>
                                 </div>
                                 <div class="card-body">
+                                    <span class="badge bg-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
+                                    <p id="results-question-text" class="mb-2"></p>
                                     <p id="correct-answer" class="lead"></p>
                                     <p id="answer-explanation" class="fst-italic"></p>
                                 </div>
                             </div>
                             
-                            <div class="card mb-4">
+                            <div class="card mb-3">
                                 <div class="card-header bg-light">
                                     <h4 class="mb-0">Player Answers</h4>
                                 </div>
@@ -124,15 +126,15 @@
                             </div>
                             
                             <!-- Feedback Form -->
-                            <div id="feedback-form" class="card mb-4" style="display: none;">
+                            <div id="feedback-form" class="card mb-3" style="display: none;">
                                 <div class="card-header bg-warning">
                                     <h4 class="mb-0">Rate This Topic</h4>
                                 </div>
                                 <div class="card-body text-center">
-                                    <p>Did you enjoy this topic?</p>
-                                    <div class="d-flex justify-content-center gap-2">
-                                        <button type="button" class="btn btn-primary feedback-btn" data-rating="true">👍 Like</button>
-                                        <button type="button" class="btn btn-secondary feedback-btn" data-rating="false">👎 Dislike</button>
+                                    <p>Did you enjoy "<span id="feedback-topic-display"></span>"?</p>
+                                    <div class="d-flex justify-content-center gap-3">
+                                        <button type="button" class="emoji-btn feedback-btn" data-rating="true">👍</button>
+                                        <button type="button" class="emoji-btn feedback-btn" data-rating="false">👎</button>
                                     </div>
                                     <p id="feedback-submitted" class="mt-2" style="display: none;">Thanks for rating!</p>
                                 </div>
@@ -147,7 +149,7 @@
                             </div>
                         </div>
                         
-                        <div id="scoreboard" class="mt-4" style="display: none;">
+                        <div id="scoreboard" class="mt-3" style="display: none;">
                             <h4>Scoreboard</h4>
                             <table class="table table-striped">
                                 <thead>
@@ -167,13 +169,13 @@
         </div>
     </div>
 
-    <div id="leave-game-container" class="text-center mb-3" style="display: none;">
-        <button id="leave-game-btn" class="btn btn-danger btn-lg">Leave Game</button>
+    <div id="leave-game-container" class="text-center mb-2" style="display: none;">
+        <button id="leave-game-btn" class="btn btn-danger">Leave Game</button>
     </div>
 
     <button id="mute-btn" class="music-control-btn">🔇</button>
 
-    <footer class="footer mt-auto py-4 bg-dark text-white custom-footer">
+    <footer class="footer mt-auto py-3 bg-dark text-white custom-footer">
         <div class="container">
             <div class="row">
                 <div class="col-12">
@@ -205,6 +207,8 @@
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 5;
         let currentTopicId = null;
+        let currentTopic = null; // Store the current topic for feedback
+        let currentQuestion = null; // Store the current question for results
 
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
@@ -320,7 +324,7 @@
                     } else if (!data.current_question) {
                         const waitingDiv = document.createElement('div');
                         waitingDiv.id = 'waiting-for-topic';
-                        waitingDiv.className = 'text-center my-5';
+                        waitingDiv.className = 'text-center my-4';
                         waitingDiv.innerHTML = `<h3>Waiting for ${data.current_player} to select a topic...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
                         document.querySelector('.card-body').appendChild(waitingDiv);
                     } else {
@@ -345,7 +349,7 @@
                 } else {
                     const waitingDiv = document.createElement('div');
                     waitingDiv.id = 'waiting-for-topic';
-                    waitingDiv.className = 'text-center my-5';
+                    waitingDiv.className = 'text-center my-4';
                     waitingDiv.innerHTML = `<h3>Waiting for ${data.next_player} to select a topic...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
                     document.querySelector('.card-body').appendChild(waitingDiv);
                 }
@@ -357,7 +361,7 @@
                 resultsDisplay.style.display = 'none';
                 const pausedDiv = document.createElement('div');
                 pausedDiv.id = 'game-paused';
-                pausedDiv.className = 'text-center my-5';
+                pausedDiv.className = 'text-center my-4';
                 pausedDiv.innerHTML = `<h3>Game Paused</h3><p>${data.message}</p><p>Waiting for players to reconnect...</p>`;
                 document.querySelector('.card-body').appendChild(pausedDiv);
             });
@@ -371,11 +375,12 @@
                 currentTopicId = data.topic_id;
                 feedbackForm.style.display = 'block';
                 document.getElementById('feedback-submitted').style.display = 'none';
+                document.getElementById('feedback-topic-display').textContent = currentTopic;
                 document.querySelectorAll('.feedback-btn').forEach(btn => {
                     btn.disabled = false;
                     btn.classList.remove('active');
                 });
-                console.log(`Feedback requested for topic_id: ${currentTopicId}`);
+                console.log(`Feedback requested for topic_id: ${currentTopicId}, topic: ${currentTopic}`);
             });
 
             socket.on('player_top_topics', function(data) {
@@ -406,7 +411,7 @@
                 topicSelection.style.display = 'none';
                 const loadingDiv = document.createElement('div');
                 loadingDiv.id = 'loading-question';
-                loadingDiv.className = 'text-center my-5';
+                loadingDiv.className = 'text-center my-4';
                 loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
                 document.querySelector('.card-body').appendChild(loadingDiv);
             });
@@ -416,7 +421,7 @@
                 topicSelection.style.display = 'none';
                 const loadingDiv = document.createElement('div');
                 loadingDiv.id = 'loading-question';
-                loadingDiv.className = 'text-center my-5';
+                loadingDiv.className = 'text-center my-4';
                 loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
                 document.querySelector('.card-body').appendChild(loadingDiv);
             });
@@ -518,7 +523,7 @@
             } else {
                 const waitingDiv = document.createElement('div');
                 waitingDiv.id = 'waiting-for-topic';
-                waitingDiv.className = 'text-center my-5';
+                waitingDiv.className = 'text-center my-4';
                 waitingDiv.innerHTML = `<h3>Waiting for ${data.current_player} to select a topic...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
                 document.querySelector('.card-body').appendChild(waitingDiv);
             }
@@ -533,6 +538,8 @@
             const pausedEl = document.getElementById('game-paused');
             if (pausedEl) pausedEl.remove();
             questionDisplay.style.display = 'block';
+            currentTopic = data.topic; // Store for feedback
+            currentQuestion = data.question; // Store for results
             document.getElementById('topic-display').textContent = data.topic;
             document.getElementById('question-text').textContent = data.question;
             document.getElementById('option-a-text').textContent = data.options[0];
@@ -594,6 +601,8 @@
             waitingForAnswers.style.display = 'none';
             resultsDisplay.style.display = 'block';
             window.playRoundEndSound();
+            document.getElementById('results-topic-display').textContent = currentTopic;
+            document.getElementById('results-question-text').textContent = currentQuestion;
             document.getElementById('correct-answer').textContent = data.correct_answer;
             document.getElementById('answer-explanation').textContent = data.explanation;
             const playerAnswersList = document.getElementById('player-answers');
@@ -658,7 +667,7 @@
                 } else {
                     const waitingDiv = document.createElement('div');
                     waitingDiv.id = 'waiting-for-topic';
-                    waitingDiv.className = 'text-center my-5';
+                    waitingDiv.className = 'text-center my-4';
                     waitingDiv.innerHTML = `<h3>Waiting for ${nextPlayer} to select a topic...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
                     document.querySelector('.card-body').appendChild(waitingDiv);
                 }
