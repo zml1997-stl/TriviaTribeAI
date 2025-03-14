@@ -209,6 +209,7 @@
         let currentTopicId = null;
         let currentTopic = null;
         let currentQuestion = null;
+        let disconnectedPlayers = {};  // Track disconnected status
 
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
@@ -346,7 +347,7 @@
             socket.on('player_rejoined', function(data) {
                 console.log(`${data.username} rejoined the game`);
                 updatePlayerList(data.players, data.player_emojis);
-                updateScoreboard(data.scores, data.player_emojis);
+                updateScoreboard(data.scores, data.player_emojis, data.disconnected);
                 hideAllSections();
                 scoreboard.style.display = 'block';
                 leaveGameContainer.style.display = 'block';
@@ -531,7 +532,7 @@
             hideAllSections();
             scoreboard.style.display = 'block';
             leaveGameContainer.style.display = 'block';
-            updateScoreboard(data.scores, data.player_emojis);
+            updateScoreboard(data.scores, data.player_emojis, data.disconnected);
             window.switchToGameMusic();
             if (data.current_player === username) {
                 topicSelection.style.display = 'block';
@@ -651,7 +652,7 @@
                 playerAnswersList.appendChild(li);
             });
             document.getElementById('next-player').textContent = data.next_player;
-            updateScoreboard(data.scores, data.player_emojis);
+            updateScoreboard(data.scores, data.player_emojis, data.disconnected);
             startNextRoundCountdown(data.next_player);
             currentTopicId = data.topic_id;
         }
@@ -665,14 +666,16 @@
             window.location.href = `/final_scoreboard/${gameId}`;
         }
 
-        function updateScoreboard(scores, player_emojis) {
+        function updateScoreboard(scores, player_emojis, disconnected) {
+            disconnectedPlayers = disconnected || disconnectedPlayers;
             const scoresTableBody = document.getElementById('scores-table-body');
             scoresTableBody.innerHTML = '';
             const sortedScores = Object.entries(scores).sort((a, b) => b[1] - a[1]);
             sortedScores.forEach(([player, score]) => {
                 const tr = document.createElement('tr');
                 if (player === username) tr.className = 'table-primary';
-                tr.innerHTML = `<td><span class="player-emoji">${player_emojis[player]}</span>${player}</td><td>${score}</td>`;
+                const statusText = disconnectedPlayers[player] ? ' (Disconnected)' : '';
+                tr.innerHTML = `<td><span class="player-emoji">${player_emojis[player]}</span>${player}${statusText}</td><td>${score}</td>`;
                 scoresTableBody.appendChild(tr);
             });
         }
@@ -709,7 +712,7 @@
             startGameLoading.style.display = 'none';
             window.switchToHomeMusic();
             updatePlayerList(data.players, data.player_emojis);
-            updateScoreboard(data.scores, data.player_emojis);
+            updateScoreboard(data.scores, data.player_emojis, data.disconnected);
         }
     </script>
 </body>
