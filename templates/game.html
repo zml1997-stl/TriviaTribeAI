@@ -5,17 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Trivia Tribe</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <audio id="select-sound" src="{{ url_for('static', filename='select.mp3') }}" preload="auto"></audio>
-    <audio id="submit-sound" src="{{ url_for('static', filename='submit.mp3') }}" preload="auto"></audio>
-    <audio id="correct-sound" src="{{ url_for('static', filename='correct.mp3') }}" preload="auto"></audio>
-    <audio id="wrong-sound" src="{{ url_for('static', filename='wrong.mp3') }}" preload="auto"></audio>
-    <audio id="round-end-sound" src="{{ url_for('static', filename='round_end.mp3') }}" preload="auto"></audio>
+    <audio id="select-sound" src="{{ url_for('static', filename='audio/select.mp3') }}" preload="auto"></audio>
+    <audio id="submit-sound" src="{{ url_for('static', filename='audio/submit.mp3') }}" preload="auto"></audio>
+    <audio id="correct-sound" src="{{ url_for('static', filename='audio/correct.mp3') }}" preload="auto"></audio>
+    <audio id="wrong-sound" src="{{ url_for('static', filename='audio/wrong.mp3') }}" preload="auto"></audio>
+    <audio id="round-end-sound" src="{{ url_for('static', filename='audio/round_end.mp3') }}" preload="auto"></audio>
 </head>
 <body>
     <header class="brand-header">
-        <img src="{{ url_for('static', filename='logo.png') }}" alt="Trivia Tribe Logo">
+        <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Trivia Tribe Logo">
     </header>
     <div class="container">
         <div class="row justify-content-center mt-3">
@@ -129,16 +129,12 @@
                                     <h4 class="mb-0">Rate This Topic</h4>
                                 </div>
                                 <div class="card-body text-center">
-                                    <p>Rating topics imporves the random topic selection! (0 = Poor, 5 = Excellent)</p>
+                                    <p>Did you enjoy this topic?</p>
                                     <div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-outline-primary feedback-btn" data-rating="0">0</button>
-                                        <button type="button" class="btn btn-outline-primary feedback-btn" data-rating="1">1</button>
-                                        <button type="button" class="btn btn-outline-primary feedback-btn" data-rating="2">2</button>
-                                        <button type="button" class="btn btn-outline-primary feedback-btn" data-rating="3">3</button>
-                                        <button type="button" class="btn btn-outline-primary feedback-btn" data-rating="4">4</button>
-                                        <button type="button" class="btn btn-outline-primary feedback-btn" data-rating="5">5</button>
+                                        <button type="button" class="btn btn-success feedback-btn" data-rating="true">👍 Like</button>
+                                        <button type="button" class="btn btn-danger feedback-btn" data-rating="false">👎 Dislike</button>
                                     </div>
-                                    <p id="feedback-submitted" class="mt-2" style="display: none;">Thank you for your feedback!</p>
+                                    <p id="feedback-submitted" class="mt-2" style="display: none;">Thanks for rating!</p>
                                 </div>
                             </div>
                             
@@ -195,7 +191,7 @@
     </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='music.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/music.js') }}"></script>
     <script>
         const gameId = "{{ game_id }}";
         const username = "{{ username }}";
@@ -208,7 +204,7 @@
         let player_emojis = {};
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 5;
-        let currentQuestionId = null;
+        let currentTopicId = null;  // Changed to currentTopicId for clarity
 
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
@@ -373,7 +369,7 @@
 
             // Handle feedback request
             socket.on('request_feedback', function(data) {
-                currentQuestionId = data.question_id;  // Changed from data.topic_id to match app.py
+                currentTopicId = data.topic_id;  // Use topic_id from app.py
                 feedbackForm.style.display = 'block';
                 document.getElementById('feedback-submitted').style.display = 'none';
                 document.querySelectorAll('.feedback-btn').forEach(btn => {
@@ -382,8 +378,9 @@
                 });
             });
 
-            // NEW: Handle player-specific top topics
+            // Handle player-specific top topics
             socket.on('player_top_topics', function(data) {
+                console.log(`Received player_top_topics: ${data.placeholder}`);
                 document.getElementById('topic-input').placeholder = data.placeholder;
             });
         }
@@ -405,6 +402,7 @@
             }
             document.getElementById('submit-topic-btn').addEventListener('click', function() {
                 const topic = document.getElementById('topic-input').value.trim();
+                console.log(`Submitting topic: ${topic}`);
                 socket.emit('select_topic', { game_id: gameId, username: username, topic: topic });
                 topicSelection.style.display = 'none';
                 const loadingDiv = document.createElement('div');
@@ -414,7 +412,8 @@
                 document.querySelector('.card-body').appendChild(loadingDiv);
             });
             document.getElementById('random-topic-btn').addEventListener('click', function() {
-                socket.emit('select_topic', { game_id: gameId, username: username, topic: '' }); // Send empty topic to trigger random selection
+                console.log(`Requesting random topic for ${username}`);
+                socket.emit('select_topic', { game_id: gameId, username: username, topic: '' });
                 topicSelection.style.display = 'none';
                 const loadingDiv = document.createElement('div');
                 loadingDiv.id = 'loading-question';
@@ -462,14 +461,15 @@
                 window.muteToggle();
             });
 
-            // Feedback button listeners
+            // Feedback button listeners (Like/Dislike)
             document.querySelectorAll('.feedback-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
-                    const rating = parseInt(this.getAttribute('data-rating'));
+                    const rating = this.getAttribute('data-rating') === 'true';  // Convert string 'true'/'false' to boolean
+                    console.log(`Rating topic ${currentTopicId} as ${rating ? 'Like' : 'Dislike'}`);
                     socket.emit('submit_feedback', { 
                         game_id: gameId,
                         username: username, 
-                        topic_id: currentQuestionId,  // Changed to topic_id to match app.py
+                        topic_id: currentTopicId,
                         rating: rating 
                     });
                     this.classList.add('active');
@@ -514,6 +514,7 @@
             updateScoreboard(data.scores, data.player_emojis);
             window.switchToGameMusic();
             if (data.current_player === username) {
+                console.log(`[startGame] Emitting request_player_top_topics for ${username}`);
                 topicSelection.style.display = 'block';
                 document.getElementById('topic-input').value = '';
                 socket.emit('request_player_top_topics', { game_id: gameId, username: username });
@@ -552,7 +553,7 @@
             document.getElementById('answered-players').innerHTML = '';
             document.getElementById('answer-progress').style.width = '0%';
             startTimer();
-            currentQuestionId = data.question_id;
+            currentTopicId = data.question_id;  // Store question_id for feedback
         }
 
         function startTimer() {
@@ -618,7 +619,7 @@
             document.getElementById('next-player').textContent = data.next_player;
             updateScoreboard(data.scores, data.player_emojis);
             startNextRoundCountdown(data.next_player);
-            currentQuestionId = data.question_id;
+            currentTopicId = data.topic_id;  // Update with topic_id from round_results
         }
 
         function endGame(data) {
@@ -655,6 +656,7 @@
                 resultsDisplay.style.display = 'none';
                 feedbackForm.style.display = 'none';
                 if (nextPlayer === username) {
+                    console.log(`[startNextRound] Emitting request_player_top_topics for ${username}`);
                     topicSelection.style.display = 'block';
                     document.getElementById('topic-input').value = '';
                     socket.emit('request_player_top_topics', { game_id: gameId, username: username });
