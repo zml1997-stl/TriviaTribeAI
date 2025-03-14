@@ -14,7 +14,6 @@ class Game(db.Model):
     question_start_time = db.Column(db.DateTime)
     last_activity = db.Column(db.DateTime, default=db.func.now())
 
-    # Define relationships with cascading deletes
     players = db.relationship('Player', backref='game', lazy=True, cascade='all, delete-orphan')
     questions = db.relationship('Question', backref='game', lazy=True, cascade='all, delete-orphan')
     answers = db.relationship('Answer', backref='game', lazy=True, cascade='all, delete-orphan')
@@ -32,7 +31,6 @@ class Player(db.Model):
     emoji = db.Column(db.String(10))
     disconnected = db.Column(db.Boolean, default=False)
 
-    # Relationships
     answers = db.relationship('Answer', backref='player', lazy=True, cascade='all, delete-orphan')
     ratings = db.relationship('Rating', backref='player', lazy=True, cascade='all, delete-orphan')
 
@@ -44,7 +42,6 @@ class Topic(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     normalized_name = db.Column(db.String(255), unique=True, nullable=False)
 
-    # Relationship
     questions = db.relationship('Question', backref='topic', lazy=True, cascade='all, delete-orphan')
     ratings = db.relationship('Rating', backref='topic', lazy=True, cascade='all, delete-orphan')
 
@@ -59,7 +56,6 @@ class Question(db.Model):
     question_text = db.Column(db.Text, nullable=False)
     answer_text = db.Column(db.Text, nullable=False)
 
-    # Relationships
     answers = db.relationship('Answer', backref='question', lazy=True, cascade='all, delete-orphan')
 
     def __repr__(self):
@@ -82,7 +78,7 @@ class Rating(db.Model):
     game_id = db.Column(db.String(4), db.ForeignKey('games.id'), nullable=False)
     player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=False)
     topic_id = db.Column(db.Integer, db.ForeignKey('topics.id'), nullable=False)
-    rating = db.Column(db.Boolean, nullable=False)  # True = Like, False = Dislike
+    rating = db.Column(db.Integer, nullable=False)  # 1 = Like, 0 = Dislike
 
     __table_args__ = (
         db.UniqueConstraint('game_id', 'player_id', 'topic_id', name='unique_rating_per_game_player_topic'),
