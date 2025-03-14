@@ -207,8 +207,8 @@
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 5;
         let currentTopicId = null;
-        let currentTopic = null; // Store the current topic for feedback
-        let currentQuestion = null; // Store the current question for results
+        let currentTopic = null;
+        let currentQuestion = null;
 
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
@@ -238,6 +238,18 @@
                 window.switchToHomeMusic();
             }
         });
+
+        function hideAllSections() {
+            waitingLobby.style.display = 'none';
+            topicSelection.style.display = 'none';
+            questionDisplay.style.display = 'none';
+            resultsDisplay.style.display = 'none';
+            scoreboard.style.display = 'none';
+            feedbackForm.style.display = 'none';
+            document.getElementById('waiting-for-topic')?.remove();
+            document.getElementById('loading-question')?.remove();
+            document.getElementById('game-paused')?.remove();
+        }
 
         function connectToSocket() {
             socket = io({
@@ -279,8 +291,16 @@
                 alert('Lost connection to the game server. Please refresh the page to try again.');
             });
 
-            socket.on('player_joined', function(data) { updatePlayerList(data.players, data.player_emojis); });
-            socket.on('player_left', function(data) { updatePlayerList(data.players, data.player_emojis); });
+            socket.on('player_joined', function(data) { 
+                updatePlayerList(data.players, data.player_emojis); 
+                hideAllSections();
+                waitingLobby.style.display = 'block';
+                leaveGameContainer.style.display = 'block';
+            });
+
+            socket.on('player_left', function(data) { 
+                updatePlayerList(data.players, data.player_emojis); 
+            });
 
             socket.on('game_started', function(data) {
                 console.log('Game started:', data);
@@ -290,14 +310,27 @@
                 startGame(data);
             });
 
-            socket.on('question_ready', function(data) { showQuestion(data); });
-            socket.on('player_answered', function(data) { playerAnswered(data.username); });
+            socket.on('question_ready', function(data) { 
+                showQuestion(data); 
+            });
+
+            socket.on('player_answered', function(data) { 
+                playerAnswered(data.username); 
+            });
+
             socket.on('round_results', function(data) { 
                 console.log('Received round_results:', data);
                 showResults(data); 
             });
-            socket.on('game_ended', function(data) { endGame(data); });
-            socket.on('game_reset', function(data) { resetGame(data); });
+
+            socket.on('game_ended', function(data) { 
+                endGame(data); 
+            });
+
+            socket.on('game_reset', function(data) { 
+                resetGame(data); 
+            });
+
             socket.on('error', function(data) {
                 console.error('Server error:', data.message);
                 alert(`Game error: ${data.message}`);
@@ -314,19 +347,15 @@
                 console.log(`${data.username} rejoined the game`);
                 updatePlayerList(data.players, data.player_emojis);
                 updateScoreboard(data.scores, data.player_emojis);
+                hideAllSections();
+                scoreboard.style.display = 'block';
+                leaveGameContainer.style.display = 'block';
                 if (data.status === 'in_progress') {
-                    waitingLobby.style.display = 'none';
-                    scoreboard.style.display = 'block';
-                    leaveGameContainer.style.display = 'block';
                     if (data.current_player === username) {
                         topicSelection.style.display = 'block';
                         socket.emit('request_player_top_topics', { game_id: gameId, username: username });
                     } else if (!data.current_question) {
-                        const waitingDiv = document.createElement('div');
-                        waitingDiv.id = 'waiting-for-topic';
-                        waitingDiv.className = 'text-center my-4';
-                        waitingDiv.innerHTML = `<h3>Waiting for ${data.current_player} to select a topic...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
-                        document.querySelector('.card-body').appendChild(waitingDiv);
+                        showWaitingForTopic(data.current_player);
                     } else {
                         showQuestion({
                             question: data.current_question.question,
@@ -335,35 +364,33 @@
                             question_id: data.current_question.question_id
                         });
                     }
+                } else {
+                    waitingLobby.style.display = 'block';
                 }
             });
 
             socket.on('turn_skipped', function(data) {
                 console.log(`${data.disconnected_player}'s turn was skipped`);
-                const waitingEl = document.getElementById('waiting-for-topic');
-                if (waitingEl) waitingEl.remove();
+                hideAllSections();
+                scoreboard.style.display = 'block';
                 if (data.next_player === username) {
                     topicSelection.style.display = 'block';
                     document.getElementById('topic-input').value = '';
                     socket.emit('request_player_top_topics', { game_id: gameId, username: username });
                 } else {
-                    const waitingDiv = document.createElement('div');
-                    waitingDiv.id = 'waiting-for-topic';
-                    waitingDiv.className = 'text-center my-4';
-                    waitingDiv.innerHTML = `<h3>Waiting for ${data.next_player} to select a topic...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
-                    document.querySelector('.card-body').appendChild(waitingDiv);
+                    showWaitingForTopic(data.next_player);
                 }
             });
 
             socket.on('game_paused', function(data) {
                 console.log('Game paused:', data.message);
-                questionDisplay.style.display = 'none';
-                resultsDisplay.style.display = 'none';
+                hideAllSections();
                 const pausedDiv = document.createElement('div');
                 pausedDiv.id = 'game-paused';
                 pausedDiv.className = 'text-center my-4';
                 pausedDiv.innerHTML = `<h3>Game Paused</h3><p>${data.message}</p><p>Waiting for players to reconnect...</p>`;
                 document.querySelector('.card-body').appendChild(pausedDiv);
+                scoreboard.style.display = 'block';
             });
 
             socket.on('player_disconnected', function(data) {
@@ -409,21 +436,13 @@
                 console.log(`Submitting topic: ${topic}`);
                 socket.emit('select_topic', { game_id: gameId, username: username, topic: topic });
                 topicSelection.style.display = 'none';
-                const loadingDiv = document.createElement('div');
-                loadingDiv.id = 'loading-question';
-                loadingDiv.className = 'text-center my-4';
-                loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
-                document.querySelector('.card-body').appendChild(loadingDiv);
+                showLoadingQuestion();
             });
             document.getElementById('random-topic-btn').addEventListener('click', function() {
                 console.log(`Requesting random topic for ${username}`);
                 socket.emit('select_topic', { game_id: gameId, username: username, topic: '' });
                 topicSelection.style.display = 'none';
-                const loadingDiv = document.createElement('div');
-                loadingDiv.id = 'loading-question';
-                loadingDiv.className = 'text-center my-4';
-                loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
-                document.querySelector('.card-body').appendChild(loadingDiv);
+                showLoadingQuestion();
             });
             document.getElementById('option-a').addEventListener('click', function() { 
                 selectAnswer('A'); 
@@ -509,9 +528,7 @@
         }
 
         function startGame(data) {
-            const waitingEl = document.getElementById('waiting-for-topic');
-            if (waitingEl) waitingEl.remove();
-            waitingLobby.style.display = 'none';
+            hideAllSections();
             scoreboard.style.display = 'block';
             leaveGameContainer.style.display = 'block';
             updateScoreboard(data.scores, data.player_emojis);
@@ -521,25 +538,37 @@
                 document.getElementById('topic-input').value = '';
                 socket.emit('request_player_top_topics', { game_id: gameId, username: username });
             } else {
-                const waitingDiv = document.createElement('div');
-                waitingDiv.id = 'waiting-for-topic';
-                waitingDiv.className = 'text-center my-4';
-                waitingDiv.innerHTML = `<h3>Waiting for ${data.current_player} to select a topic...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
-                document.querySelector('.card-body').appendChild(waitingDiv);
+                showWaitingForTopic(data.current_player);
             }
+        }
+
+        function showWaitingForTopic(player) {
+            hideAllSections();
+            scoreboard.style.display = 'block';
+            const waitingDiv = document.createElement('div');
+            waitingDiv.id = 'waiting-for-topic';
+            waitingDiv.className = 'text-center my-4';
+            waitingDiv.innerHTML = `<h3>Waiting for ${player} to select a topic...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
+            document.querySelector('.card-body').appendChild(waitingDiv);
+        }
+
+        function showLoadingQuestion() {
+            hideAllSections();
+            scoreboard.style.display = 'block';
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'loading-question';
+            loadingDiv.className = 'text-center my-4';
+            loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
+            document.querySelector('.card-body').appendChild(loadingDiv);
         }
 
         function showQuestion(data) {
             console.log('Showing question:', data);
-            const loadingEl = document.getElementById('loading-question');
-            if (loadingEl) loadingEl.remove();
-            const waitingEl = document.getElementById('waiting-for-topic');
-            if (waitingEl) waitingEl.remove();
-            const pausedEl = document.getElementById('game-paused');
-            if (pausedEl) pausedEl.remove();
+            hideAllSections();
             questionDisplay.style.display = 'block';
-            currentTopic = data.topic; // Store for feedback
-            currentQuestion = data.question; // Store for results
+            scoreboard.style.display = 'block';
+            currentTopic = data.topic;
+            currentQuestion = data.question;
             document.getElementById('topic-display').textContent = data.topic;
             document.getElementById('question-text').textContent = data.question;
             document.getElementById('option-a-text').textContent = data.options[0];
@@ -597,9 +626,9 @@
         function showResults(data) {
             console.log('Showing results:', data);
             clearInterval(timerInterval);
-            questionDisplay.style.display = 'none';
-            waitingForAnswers.style.display = 'none';
+            hideAllSections();
             resultsDisplay.style.display = 'block';
+            scoreboard.style.display = 'block';
             window.playRoundEndSound();
             document.getElementById('results-topic-display').textContent = currentTopic;
             document.getElementById('results-question-text').textContent = currentQuestion;
@@ -630,8 +659,7 @@
         function endGame(data) {
             console.log('Game ended with scores:', data.scores);
             clearInterval(timerInterval);
-            questionDisplay.style.display = 'none';
-            resultsDisplay.style.display = 'none';
+            hideAllSections();
             localStorage.removeItem('gameId');
             localStorage.removeItem('username');
             window.location.href = `/final_scoreboard/${gameId}`;
@@ -658,18 +686,14 @@
             setTimeout(() => {
                 progressBar.style.width = '0%';
                 progressBar.style.transition = 'none';
-                resultsDisplay.style.display = 'none';
-                feedbackForm.style.display = 'none';
+                hideAllSections();
+                scoreboard.style.display = 'block';
                 if (nextPlayer === username) {
                     topicSelection.style.display = 'block';
                     document.getElementById('topic-input').value = '';
                     socket.emit('request_player_top_topics', { game_id: gameId, username: username });
                 } else {
-                    const waitingDiv = document.createElement('div');
-                    waitingDiv.id = 'waiting-for-topic';
-                    waitingDiv.className = 'text-center my-4';
-                    waitingDiv.innerHTML = `<h3>Waiting for ${nextPlayer} to select a topic...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
-                    document.querySelector('.card-body').appendChild(waitingDiv);
+                    showWaitingForTopic(nextPlayer);
                 }
             }, 10000);
         }
@@ -677,11 +701,10 @@
         function resetGame(data) {
             console.log('Resetting game:', data);
             clearInterval(timerInterval);
-            questionDisplay.style.display = 'none';
-            resultsDisplay.style.display = 'none';
+            hideAllSections();
+            waitingLobby.style.display = 'block';
             scoreboard.style.display = 'none';
             leaveGameContainer.style.display = 'none';
-            waitingLobby.style.display = 'block';
             startGameBtn.disabled = false;
             startGameLoading.style.display = 'none';
             window.switchToHomeMusic();
