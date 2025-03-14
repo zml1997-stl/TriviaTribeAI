@@ -629,6 +629,7 @@ def question_timer(game_id):
                         'question_id': current_question.id,
                         'topic_id': current_question.topic_id
                     }, room=game_id, namespace='/')
+                    logger.debug(f"Requesting feedback for topic_id {current_question.topic_id} in game {game_id}")
                     socketio.emit('request_feedback', {'topic_id': current_question.topic_id}, room=game_id, namespace='/')
                     db.session.query(Answer).filter_by(game_id=game_id, question_id=current_question.id).delete()
                     db.session.commit()
@@ -695,6 +696,7 @@ def handle_submit_answer(data):
                             'question_id': current_question.id,
                             'topic_id': current_question.topic_id
                         }, room=game_id, namespace='/')
+                        logger.debug(f"Requesting feedback for topic_id {current_question.topic_id} in game {game_id}")
                         socketio.emit('request_feedback', {'topic_id': current_question.topic_id}, room=game_id, namespace='/')
                         db.session.query(Answer).filter_by(game_id=game_id, question_id=current_question.id).delete()
                         db.session.commit()
@@ -709,7 +711,16 @@ def handle_feedback(data):
     with app.app_context():
         player = Player.query.filter_by(username=username, game_id=game_id).first()
         topic = Topic.query.get(topic_id)
-        if player and topic and isinstance(rating, bool):
+        if not player:
+            logger.error(f"No player found for username {username} in game {game_id}")
+            return
+        if not topic:
+            logger.error(f"No topic found for topic_id {topic_id} in game {game_id}")
+            return
+        if not isinstance(rating, bool):
+            logger.error(f"Invalid rating value: {rating} for {username} in game {game_id}")
+            return
+        try:
             existing_rating = Rating.query.filter_by(game_id=game_id, player_id=player.id, topic_id=topic_id).first()
             if existing_rating:
                 existing_rating.rating = rating
@@ -717,7 +728,10 @@ def handle_feedback(data):
                 new_rating = Rating(game_id=game_id, player_id=player.id, topic_id=topic_id, rating=rating)
                 db.session.add(new_rating)
             db.session.commit()
-            logger.debug(f"Player {username} rated topic {topic.normalized_name} as {'Like' if rating else 'Dislike'}")
+            logger.debug(f"Player {username} rated topic {topic.normalized_name} as {'Like' if rating else 'Dislike'} in game {game_id}")
+        except SQLAlchemyError as e:
+            logger.error(f"Failed to save rating for {username} on topic {topic_id} in game {game_id}: {str(e)}")
+            db.session.rollback()
 
 @socketio.on('disconnect')
 def handle_disconnect():
