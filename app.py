@@ -347,7 +347,7 @@ def question_timer(game_id):
         db.session.commit()
 
         max_score = max([p.score for p in Player.query.filter_by(game_id=game_id).all()] + [0])
-        if max_score >= 10:
+        if max_score >= 15:
             socketio.emit('game_ended', {
                 'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                 'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
@@ -674,7 +674,7 @@ def handle_select_topic(data):
             return
 
         click_count = random_click_counters.get(game_id, {}).get(username, 0)
-        use_liked = click_count > 0 and click_count % 1 == 0
+        use_liked = click_count > 0 and click_count % 3 == 0
         if use_liked and not topic:
             liked_topics = db.session.query(Topic.normalized_name
                 ).join(Rating, Rating.topic_id == Topic.id
