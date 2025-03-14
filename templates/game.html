@@ -375,6 +375,7 @@
                     btn.disabled = false;
                     btn.classList.remove('active');
                 });
+                console.log(`Feedback requested for topic_id: ${currentTopicId}`);
             });
 
             socket.on('player_top_topics', function(data) {
@@ -549,7 +550,6 @@
             document.getElementById('answered-players').innerHTML = '';
             document.getElementById('answer-progress').style.width = '0%';
             startTimer();
-            currentTopicId = data.question_id;
         }
 
         function startTimer() {
@@ -615,7 +615,7 @@
             document.getElementById('next-player').textContent = data.next_player;
             updateScoreboard(data.scores, data.player_emojis);
             startNextRoundCountdown(data.next_player);
-            currentTopicId = data.topic_id;
+            currentTopicId = data.topic_id; // Set currentTopicId here to match request_feedback
         }
 
         function endGame(data) {
