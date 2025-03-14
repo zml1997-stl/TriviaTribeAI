@@ -107,7 +107,8 @@
                                     <h4 class="mb-0">Correct Answer</h4>
                                 </div>
                                 <div class="card-body">
-                                    <span class="badge bg-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
+                                    <span class="badge b
+g-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
                                     <p id="results-question-text" class="mb-2"></p>
                                     <p id="correct-answer" class="lead"></p>
                                     <p id="answer-explanation" class="fst-italic"></p>
@@ -304,9 +305,9 @@
             });
 
             socket.on('game_started', function(data) {
-                console.log('Game started:', data);
+                console.log('Game started received:', data);
                 clearTimeout(startGameTimeout);
-                startGameBtn.disabled = false;
+                if (startGameBtn) startGameBtn.disabled = false;
                 startGameLoading.style.display = 'none';
                 startGame(data);
             });
@@ -335,7 +336,7 @@
             socket.on('error', function(data) {
                 console.error('Server error:', data.message);
                 alert(`Game error: ${data.message}`);
-                startGameBtn.disabled = false;
+                if (startGameBtn) startGameBtn.disabled = false;
                 startGameLoading.style.display = 'none';
                 if (data.message.includes('Game not found')) {
                     localStorage.removeItem('gameId');
@@ -529,6 +530,7 @@
         }
 
         function startGame(data) {
+            console.log('startGame called with:', data);
             hideAllSections();
             scoreboard.style.display = 'block';
             leaveGameContainer.style.display = 'block';
@@ -599,9 +601,16 @@
                 if (timeLeft <= 0) {
                     clearInterval(timerInterval);
                     console.log('Timer expired');
+                    timerProgress.style.width = '0%';
                     if (!selectedAnswer) {
                         socket.emit('submit_answer', { game_id: gameId, username: username, answer: null });
                         console.log('Submitted null answer due to timeout');
+                        disableAnswerButtons();
+                        document.getElementById('submit-answer-btn').disabled = true;
+                        const playerCount = document.getElementById('player-list').childElementCount;
+                        if (playerCount > 1) {
+                            waitingForAnswers.style.display = 'block';
+                        }
                     }
                 }
             }, 1000);
@@ -708,7 +717,7 @@
             waitingLobby.style.display = 'block';
             scoreboard.style.display = 'none';
             leaveGameContainer.style.display = 'none';
-            startGameBtn.disabled = false;
+            if (startGameBtn) startGameBtn.disabled = false;
             startGameLoading.style.display = 'none';
             window.switchToHomeMusic();
             updatePlayerList(data.players, data.player_emojis);
