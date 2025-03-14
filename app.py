@@ -57,7 +57,9 @@ PLAYER_EMOJIS = [
 
 # Store active timers and recent random topics per game
 active_timers = {}
-recent_random_topics = {}  # {game_id: [list of recently used topics]}
+random_click_counters = {}  # Structure: {game_id: {username: count}}
+recent_random_topics = {}   # Structure: {game_id: [topics]} (shared across players in multiplayer)
+
 
 def generate_game_id():
     while True:
@@ -177,6 +179,10 @@ def suggest_random_topic(game_id, username=None):
     try:
         if game_id not in recent_random_topics:
             recent_random_topics[game_id] = []
+        if game_id not in random_click_counters:
+            random_click_counters[game_id] = {}
+        if username and username not in random_click_counters[game_id]:
+            random_click_counters[game_id][username] = 0
 
         last_question = db.session.query(Question.topic_id
             ).filter(Question.game_id == game_id
@@ -189,50 +195,53 @@ def suggest_random_topic(game_id, username=None):
             logger.debug(f"No player found for {username} in game {game_id}, using fallback topics")
             candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in recent_random_topics[game_id]]
             topic = random.choice(candidate_topics or RANDOM_TOPICS)
+            if username:  # Only increment if a username is provided
+                random_click_counters[game_id][username] += 1
             recent_random_topics[game_id].append(topic)
             if len(recent_random_topics[game_id]) > 3:
                 recent_random_topics[game_id].pop(0)
+            logger.debug(f"Game {game_id}: Suggested random topic '{topic}' for {username or 'unknown'}")
             return topic
 
-        # Get liked topics (1) and disliked topics (0)
+        # Get liked and disliked topics for this player
         liked_topics = db.session.query(Topic.normalized_name
             ).join(Rating, Rating.topic_id == Topic.id
-            ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 1  # Changed from True
+            ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 1
             ).group_by(Topic.normalized_name
-            ).having(func.count(Rating.id) > func.count(db.case((Rating.rating == 0, 1), else_=None))  # Changed from False
             ).all()
         disliked_topics = db.session.query(Topic.normalized_name
             ).join(Rating, Rating.topic_id == Topic.id
-            ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 0  # Changed from False
+            ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 0
             ).group_by(Topic.normalized_name
-            ).having(func.count(Rating.id) > func.count(db.case((Rating.rating == 1, 1), else_=None))  # Changed from True
             ).all()
 
         liked_topic_names = [t.normalized_name for t in liked_topics]
         disliked_topic_names = [t.normalized_name for t in disliked_topics]
 
-        candidate_topics = liked_topic_names + [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in disliked_topic_names]
+        # Log for debugging
+        logger.debug(f"Game {game_id}: Liked topics for {username}: {liked_topic_names}")
+        logger.debug(f"Game {game_id}: Disliked topics for {username}: {disliked_topic_names}")
+        logger.debug(f"Game {game_id}: Random click count for {username}: {random_click_counters[game_id][username]}")
+
+        # Default random topic pool
+        candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in disliked_topic_names]
         candidate_topics = [t for t in candidate_topics if t not in recent_random_topics[game_id] and t != (last_topic or "")]
 
-        use_liked = len(recent_random_topics[game_id]) % 3 == 2 and liked_topic_names
-        if use_liked:
-            liked_candidates = [t for t in liked_topic_names if t not in recent_random_topics[game_id] and t != (last_topic or "")]
-            topic = random.choice(liked_candidates) if liked_candidates else random.choice(candidate_topics or RANDOM_TOPICS)
-            logger.debug(f"Game {game_id}: Forced liked topic '{topic}' for {username} (3rd selection)")
-        else:
-            topic = random.choice(candidate_topics or RANDOM_TOPICS)
-            logger.debug(f"Game {game_id}: Mixed topic '{topic}' for {username} (liked + random pool)")
-
+        # Always return a random topic for the "Random Topic" button
+        topic = random.choice(candidate_topics or RANDOM_TOPICS)
+        random_click_counters[game_id][username] += 1
         recent_random_topics[game_id].append(topic)
         if len(recent_random_topics[game_id]) > 3:
             recent_random_topics[game_id].pop(0)
+        logger.debug(f"Game {game_id}: Suggested random topic '{topic}' for {username}")
         return topic
 
     except Exception as e:
         logger.error(f"Error fetching random topic for game {game_id}, user {username}: {str(e)}")
         db.session.rollback()
-        candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS]
-        topic = random.choice(candidate_topics)
+        topic = random.choice([t.lower().strip() for t in RANDOM_TOPICS])
+        if username:
+            random_click_counters[game_id][username] += 1
         recent_random_topics[game_id].append(topic)
         if len(recent_random_topics[game_id]) > 3:
             recent_random_topics[game_id].pop(0)
@@ -519,30 +528,48 @@ def handle_request_player_top_topics(data):
 
 @socketio.on('select_topic')
 def handle_select_topic(data):
+    game_id = data.get('game_id')
+    username = data.get('username')
+    topic = data.get('topic', '').strip().lower()
+
     with app.app_context():
-        game_id = data['game_id']
-        username = data['username']
-        topic = data['topic'].lower()
-
-        game = Game.query.filter_by(id=game_id).first()
-        if not game:
-            logger.error(f"Game {game_id} not found")
-            socketio.emit('error', {'message': 'Game not found'}, room=game_id, namespace='/')
+        player = Player.query.filter_by(username=username, game_id=game_id).first()
+        if not player:
+            logger.error(f"No player found for {username} in game {game_id}")
             return
 
-        current_player = Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first()
-        if not current_player:
-            logger.error(f"No current player at index {game.current_player_index} for game {game_id}")
-            socketio.emit('error', {'message': 'No current player available'}, room=game_id, namespace='/')
-            return
+        # Check if this player's 3rd random click was followed by submit
+        click_count = random_click_counters.get(game_id, {}).get(username, 0)
+        use_liked = click_count > 0 and click_count % 3 == 0
+        if use_liked and not topic:  # Empty topic means using the random suggestion
+            liked_topics = db.session.query(Topic.normalized_name
+                ).join(Rating, Rating.topic_id == Topic.id
+                ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 1
+                ).group_by(Topic.normalized_name
+                ).all()
+            liked_topic_names = [t.normalized_name for t in liked_topics]
+            last_topic = Topic.query.get(db.session.query(Question.topic_id).filter(Question.game_id == game_id).order_by(Question.id.desc()).first()[0]).normalized_name if db.session.query(Question).filter(Question.game_id == game_id).count() > 0 else None
+            liked_candidates = [t for t in liked_topic_names if t not in recent_random_topics.get(game_id, []) and t != (last_topic or "")]
+            if liked_candidates:
+                topic = random.choice(liked_candidates)
+                logger.debug(f"Game {game_id}: Forced liked topic '{topic}' for {username} on 3rd submit")
+            else:
+                topic = suggest_random_topic(game_id, username)  # Fallback to random
+                logger.debug(f"Game {game_id}: No liked topics available, used random '{topic}' for {username}")
 
-        if username != current_player.username or game.status != 'in_progress':
-            logger.warning(f"Unauthorized topic selection: {username} != {current_player.username} or status {game.status}")
-            return
+        # Reset counter after forcing a liked topic
+        if use_liked and topic in liked_topic_names:
+            random_click_counters[game_id][username] = 0
 
+        # If topic is still empty or not overridden, use a random one
         if not topic:
             topic = suggest_random_topic(game_id, username)
 
+        # Proceed with the selected or forced topic
+        logger.debug(f"Game {game_id}: Final topic selected: '{topic}' for {username}")
+        # Add your existing logic here (e.g., generate question, emit events)
+        # Example:
+        # generate_question_and_emit(game_id, topic)
         try:
             topic_obj = get_or_create_topic(topic)
             question_data = get_trivia_question(topic)
