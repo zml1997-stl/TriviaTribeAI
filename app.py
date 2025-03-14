@@ -252,7 +252,7 @@ def suggest_random_topic(game_id, username=None):
 @timeout_decorator.timeout(5, timeout_exception=TimeoutError)
 def get_trivia_question(topic):
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        model = genai.GenerativeModel('gemini-2.0-flash')
         prompt = f"""
         Generate a trivia question about "{topic}" with a single, clear answer.
         Requirements:
