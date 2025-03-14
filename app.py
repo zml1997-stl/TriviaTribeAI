@@ -159,14 +159,14 @@ def get_player_top_topics(game_id, username, limit=3):
     if not player:
         logger.debug(f"No player found for {username} in game {game_id}")
         return "Enter a topic or click Random Topic"
-    # Count Likes (True) per topic
+    # Count Likes (1) per topic, assuming rating is stored as INTEGER (0 = Dislike, 1 = Like)
     top_topics = db.session.query(
         Topic.normalized_name,
-        func.sum(db.cast(Rating.rating, db.Integer)).label('like_count')
+        func.count(Rating.id).label('like_count')  # Simpler: just count rows where rating = 1
     ).join(Rating, Rating.topic_id == Topic.id
-    ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == True
+    ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 1  # Compare with 1, not True
     ).group_by(Topic.normalized_name
-    ).order_by(func.sum(db.cast(Rating.rating, db.Integer)).desc()
+    ).order_by(func.count(Rating.id).desc()
     ).limit(limit).all()
     result = ", ".join([row.normalized_name for row in top_topics]) if top_topics else "Enter a topic or click Random Topic"
     logger.debug(f"Top liked topics for {username} in game {game_id}: {result}")
@@ -175,11 +175,9 @@ def get_player_top_topics(game_id, username, limit=3):
 # Random topic suggestion with Like/Dislike logic
 def suggest_random_topic(game_id, username=None):
     try:
-        # Initialize recent topics list for this game if not present
         if game_id not in recent_random_topics:
             recent_random_topics[game_id] = []
 
-        # Get last used topic
         last_question = db.session.query(Question.topic_id
             ).filter(Question.game_id == game_id
             ).order_by(Question.id.desc()
@@ -192,32 +190,30 @@ def suggest_random_topic(game_id, username=None):
             candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in recent_random_topics[game_id]]
             topic = random.choice(candidate_topics or RANDOM_TOPICS)
             recent_random_topics[game_id].append(topic)
-            if len(recent_random_topics[game_id]) > 3:  # Limit to last 3 to allow variety
+            if len(recent_random_topics[game_id]) > 3:
                 recent_random_topics[game_id].pop(0)
             return topic
 
-        # Get liked topics (True) and disliked topics (False)
+        # Get liked topics (1) and disliked topics (0)
         liked_topics = db.session.query(Topic.normalized_name
             ).join(Rating, Rating.topic_id == Topic.id
-            ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == True
+            ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 1  # Changed from True
             ).group_by(Topic.normalized_name
-            ).having(func.count(Rating.id) > func.count(db.case((Rating.rating == False, 1), else_=None))
+            ).having(func.count(Rating.id) > func.count(db.case((Rating.rating == 0, 1), else_=None))  # Changed from False
             ).all()
         disliked_topics = db.session.query(Topic.normalized_name
             ).join(Rating, Rating.topic_id == Topic.id
-            ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == False
+            ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 0  # Changed from False
             ).group_by(Topic.normalized_name
-            ).having(func.count(Rating.id) > func.count(db.case((Rating.rating == True, 1), else_=None))
+            ).having(func.count(Rating.id) > func.count(db.case((Rating.rating == 1, 1), else_=None))  # Changed from True
             ).all()
 
         liked_topic_names = [t.normalized_name for t in liked_topics]
         disliked_topic_names = [t.normalized_name for t in disliked_topics]
 
-        # Mix liked topics with RANDOM_TOPICS, exclude disliked and recent
         candidate_topics = liked_topic_names + [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in disliked_topic_names]
         candidate_topics = [t for t in candidate_topics if t not in recent_random_topics[game_id] and t != (last_topic or "")]
 
-        # Every 3rd random selection, prefer a liked topic if available
         use_liked = len(recent_random_topics[game_id]) % 3 == 2 and liked_topic_names
         if use_liked:
             liked_candidates = [t for t in liked_topic_names if t not in recent_random_topics[game_id] and t != (last_topic or "")]
@@ -227,7 +223,6 @@ def suggest_random_topic(game_id, username=None):
             topic = random.choice(candidate_topics or RANDOM_TOPICS)
             logger.debug(f"Game {game_id}: Mixed topic '{topic}' for {username} (liked + random pool)")
 
-        # Update recent topics
         recent_random_topics[game_id].append(topic)
         if len(recent_random_topics[game_id]) > 3:
             recent_random_topics[game_id].pop(0)
@@ -703,6 +698,7 @@ def handle_submit_answer(data):
                         update_game_activity(game_id)
 
 @socketio.on('submit_feedback')
+@socketio.on('submit_feedback')
 def handle_feedback(data):
     game_id = data.get('game_id')
     topic_id = data.get('topic_id')
@@ -721,11 +717,13 @@ def handle_feedback(data):
             logger.error(f"Invalid rating value: {rating} for {username} in game {game_id}")
             return
         try:
+            # Convert boolean to integer: True -> 1, False -> 0
+            rating_int = 1 if rating else 0
             existing_rating = Rating.query.filter_by(game_id=game_id, player_id=player.id, topic_id=topic_id).first()
             if existing_rating:
-                existing_rating.rating = rating
+                existing_rating.rating = rating_int
             else:
-                new_rating = Rating(game_id=game_id, player_id=player.id, topic_id=topic_id, rating=rating)
+                new_rating = Rating(game_id=game_id, player_id=player.id, topic_id=topic_id, rating=rating_int)
                 db.session.add(new_rating)
             db.session.commit()
             logger.debug(f"Player {username} rated topic {topic.normalized_name} as {'Like' if rating else 'Dislike'} in game {game_id}")
