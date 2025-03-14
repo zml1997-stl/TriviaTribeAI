@@ -55,8 +55,9 @@ PLAYER_EMOJIS = [
     "🏆", "💡", "🌍", "🎨", "📚", "🔥", "💎", "🐱", "🐶", "🌸"
 ]
 
-# Store active timers
+# Store active timers and recent random topics per game
 active_timers = {}
+recent_random_topics = {}  # {game_id: [list of recently used topics]}
 
 def generate_game_id():
     while True:
@@ -118,6 +119,8 @@ def cleanup_inactive_games():
                     db.session.delete(game)
                     db.session.commit()
                     logger.info(f"Cleaned up inactive game {game.id}")
+                    if game.id in recent_random_topics:
+                        del recent_random_topics[game.id]
         except Exception as e:
             logger.error(f"Error in cleanup_inactive_games: {str(e)}")
             if 'db' in locals():
@@ -154,37 +157,91 @@ def get_or_create_topic(topic_name):
 def get_player_top_topics(game_id, username, limit=3):
     player = Player.query.filter_by(game_id=game_id, username=username).first()
     if not player:
+        logger.debug(f"No player found for {username} in game {game_id}")
         return "Enter a topic or click Random Topic"
+    # Count Likes (True) per topic
     top_topics = db.session.query(
         Topic.normalized_name,
-        func.avg(Rating.rating).label('avg_rating'),
-        func.count(Rating.id).label('rating_count')
+        func.sum(db.cast(Rating.rating, db.Integer)).label('like_count')
     ).join(Rating, Rating.topic_id == Topic.id
-    ).filter(Rating.game_id == game_id, Rating.player_id == player.id
+    ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == True
     ).group_by(Topic.normalized_name
-    ).order_by(func.avg(Rating.rating).desc()
+    ).order_by(func.sum(db.cast(Rating.rating, db.Integer)).desc()
     ).limit(limit).all()
-    return ", ".join([row.normalized_name for row in top_topics]) if top_topics else "Enter a topic or click Random Topic"
+    result = ", ".join([row.normalized_name for row in top_topics]) if top_topics else "Enter a topic or click Random Topic"
+    logger.debug(f"Top liked topics for {username} in game {game_id}: {result}")
+    return result
 
-# Simplified random topic suggestion
+# Random topic suggestion with Like/Dislike logic
 def suggest_random_topic(game_id, username=None):
     try:
+        # Initialize recent topics list for this game if not present
+        if game_id not in recent_random_topics:
+            recent_random_topics[game_id] = []
+
+        # Get last used topic
         last_question = db.session.query(Question.topic_id
             ).filter(Question.game_id == game_id
             ).order_by(Question.id.desc()
             ).first()
         last_topic = Topic.query.get(last_question.topic_id).normalized_name if last_question else None
+
+        player = Player.query.filter_by(game_id=game_id, username=username).first()
+        if not player:
+            logger.debug(f"No player found for {username} in game {game_id}, using fallback topics")
+            candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in recent_random_topics[game_id]]
+            topic = random.choice(candidate_topics or RANDOM_TOPICS)
+            recent_random_topics[game_id].append(topic)
+            if len(recent_random_topics[game_id]) > 3:  # Limit to last 3 to allow variety
+                recent_random_topics[game_id].pop(0)
+            return topic
+
+        # Get liked topics (True) and disliked topics (False)
+        liked_topics = db.session.query(Topic.normalized_name
+            ).join(Rating, Rating.topic_id == Topic.id
+            ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == True
+            ).group_by(Topic.normalized_name
+            ).having(func.count(Rating.id) > func.count(db.case((Rating.rating == False, 1), else_=None))
+            ).all()
+        disliked_topics = db.session.query(Topic.normalized_name
+            ).join(Rating, Rating.topic_id == Topic.id
+            ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == False
+            ).group_by(Topic.normalized_name
+            ).having(func.count(Rating.id) > func.count(db.case((Rating.rating == True, 1), else_=None))
+            ).all()
+
+        liked_topic_names = [t.normalized_name for t in liked_topics]
+        disliked_topic_names = [t.normalized_name for t in disliked_topics]
+
+        # Mix liked topics with RANDOM_TOPICS, exclude disliked and recent
+        candidate_topics = liked_topic_names + [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in disliked_topic_names]
+        candidate_topics = [t for t in candidate_topics if t not in recent_random_topics[game_id] and t != (last_topic or "")]
+
+        # Every 3rd random selection, prefer a liked topic if available
+        use_liked = len(recent_random_topics[game_id]) % 3 == 2 and liked_topic_names
+        if use_liked:
+            liked_candidates = [t for t in liked_topic_names if t not in recent_random_topics[game_id] and t != (last_topic or "")]
+            topic = random.choice(liked_candidates) if liked_candidates else random.choice(candidate_topics or RANDOM_TOPICS)
+            logger.debug(f"Game {game_id}: Forced liked topic '{topic}' for {username} (3rd selection)")
+        else:
+            topic = random.choice(candidate_topics or RANDOM_TOPICS)
+            logger.debug(f"Game {game_id}: Mixed topic '{topic}' for {username} (liked + random pool)")
+
+        # Update recent topics
+        recent_random_topics[game_id].append(topic)
+        if len(recent_random_topics[game_id]) > 3:
+            recent_random_topics[game_id].pop(0)
+        return topic
+
     except Exception as e:
-        logger.error(f"Error fetching last topic for game {game_id}: {str(e)}")
+        logger.error(f"Error fetching random topic for game {game_id}, user {username}: {str(e)}")
         db.session.rollback()
-        last_topic = None
-
-    candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() != (last_topic or "")]
-    if not candidate_topics:
         candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS]
-
-    logger.debug(f"Game {game_id}: Selected random topic from {len(candidate_topics)} candidates")
-    return random.choice(candidate_topics)
+        topic = random.choice(candidate_topics)
+        recent_random_topics[game_id].append(topic)
+        if len(recent_random_topics[game_id]) > 3:
+            recent_random_topics[game_id].pop(0)
+        return topic
 
 @app.route('/')
 def welcome():
@@ -303,7 +360,6 @@ def reset_game(game_id):
             game = Game.query.filter_by(id=game_id).first()
             if not game:
                 return jsonify({'error': 'Game not found'}), 404
-            # Cancel any existing timer
             if game_id in active_timers:
                 active_timers[game_id].cancel()
                 del active_timers[game_id]
@@ -318,6 +374,8 @@ def reset_game(game_id):
                 player.score = 0
                 player.disconnected = False
             db.session.commit()
+            if game_id in recent_random_topics:
+                del recent_random_topics[game_id]
             socketio.emit('game_reset', {
                 'players': [p.username for p in players],
                 'scores': {p.username: p.score for p in players},
@@ -461,6 +519,7 @@ def handle_request_player_top_topics(data):
     game_id = data.get('game_id')
     username = data.get('username')
     placeholder_text = get_player_top_topics(game_id, username)
+    logger.debug(f"Game {game_id}: Sending top topics placeholder '{placeholder_text}' to {username}")
     socketio.emit('player_top_topics', {'placeholder': placeholder_text}, room=request.sid, namespace='/')
 
 @socketio.on('select_topic')
@@ -486,13 +545,12 @@ def handle_select_topic(data):
             logger.warning(f"Unauthorized topic selection: {username} != {current_player.username} or status {game.status}")
             return
 
-        if not topic:  # Changed from topic == 'random' to not topic
+        if not topic:
             topic = suggest_random_topic(game_id, username)
 
         try:
             topic_obj = get_or_create_topic(topic)
             question_data = get_trivia_question(topic)
-
             new_question = Question(
                 game_id=game_id,
                 topic_id=topic_obj.id,
@@ -514,11 +572,9 @@ def handle_select_topic(data):
                 'question_id': new_question.id
             }, room=game_id, namespace='/')
 
-            # Cancel any existing timer for this game
             if game_id in active_timers:
                 active_timers[game_id].cancel()
                 logger.debug(f"Cancelled existing timer for game {game_id}")
-            # Start new timer
             timer = threading.Timer(30.0, question_timer, args=(game_id,))
             active_timers[game_id] = timer
             timer.start()
@@ -649,11 +705,11 @@ def handle_feedback(data):
     game_id = data.get('game_id')
     topic_id = data.get('topic_id')
     username = data.get('username')
-    rating = data.get('rating')
+    rating = data.get('rating')  # Expecting True (Like) or False (Dislike)
     with app.app_context():
         player = Player.query.filter_by(username=username, game_id=game_id).first()
         topic = Topic.query.get(topic_id)
-        if player and topic and 0 <= rating <= 5:
+        if player and topic and isinstance(rating, bool):
             existing_rating = Rating.query.filter_by(game_id=game_id, player_id=player.id, topic_id=topic_id).first()
             if existing_rating:
                 existing_rating.rating = rating
@@ -661,7 +717,7 @@ def handle_feedback(data):
                 new_rating = Rating(game_id=game_id, player_id=player.id, topic_id=topic_id, rating=rating)
                 db.session.add(new_rating)
             db.session.commit()
-            logger.debug(f"Player {username} rated topic {topic.normalized_name} with {rating}")
+            logger.debug(f"Player {username} rated topic {topic.normalized_name} as {'Like' if rating else 'Dislike'}")
 
 @socketio.on('disconnect')
 def handle_disconnect():
