@@ -22,10 +22,66 @@ logger = logging.getLogger(__name__)
 
 # List of random trivia topics
 RANDOM_TOPICS = [
-    "3rd grade math", "Business", "2010s music", "80s nostalgia", "Famous inventions",
-    "World history", "Mythology", "Animal kingdom", "Space exploration", "Famous authors",
-    "Video games", "Physics", "Chemistry", "Biology", "Geography", "Art history",
-    "Classical music", "Pop culture", "Sports trivia", "Ancient civilizations"
+    "3rd grade math", "Business", "2010s music", "80s nostalgia", "Famous inventions", 
+    "World history", "Mythology", "Animal kingdom", "Space exploration", "Famous authors", 
+    "Food and cuisine", "Famous landmarks", "Olympic history", "Pop culture", "Famous movie quotes", 
+    "Geography", "Superheroes", "Modern art", "Scientific discoveries", "Historical events", 
+    "US presidents", "Fashion trends", "Classic literature", "Broadway musicals", "Medical breakthroughs", 
+    "Ancient civilizations", "Video game history", "Technology innovations", "Sports trivia", "Famous paintings", 
+    "Iconic TV shows", "Music festivals", "World religions", "Presidents of other countries", "Film directors", 
+    "Musical instruments", "Historical figures", "90s cartoons", "Natural wonders", "Famous scientists", 
+    "Classic cars", "Environmental issues", "Art movements", "70s rock music", "Political scandals", 
+    "World capitals", "Winter holidays", "Dance styles", "Popular board games", "Famous photographers", 
+    "Architecture", "Classic literature adaptations", "Inventions by women", "World War II", "Famous TV hosts", 
+    "Famous duos in history", "Famous criminals", "Inventions in the 20th century", "Lost civilizations", "Space missions", 
+    "Languages", "Famous artists", "World sports tournaments", "Underwater exploration", "Famous beaches", 
+    "Political revolutions", "Famous explorers", "Wild West history", "The Renaissance", "Famous writers of the 20th century", 
+    "African history", "Historical wars", "Technology companies", "Global warming", "Ancient architecture", 
+    "Civil rights movements", "Favorite childhood snacks", "Legendary monsters and cryptids", "Historical novels", "Scientific theories", 
+    "Major historical treaties", "World fairs", "Golden Age of Hollywood", "Famous mathematicians", "Famous comedians", 
+    "Surrealist artists", "Unsolved mysteries", "World Trade history", "Chinese dynasties", "Ancient Egypt", 
+    "Music theory", "Wildlife conservation", "Famous political speeches", "Social movements", "Vintage TV shows", 
+    "Film noir", "Rock ‘n’ roll pioneers", "Hip-hop history", "Fashion designers", "Great explorers of the seas", 
+    "Major natural disasters", "Ballet history", "Horror movie icons", "Futurism", "Street art", 
+    "Political ideologies", "Nobel Prize winners", "Classical composers", "Modern philosophy", "Cold War", 
+    "World War I", "Civilizations of Mesoamerica", "Classic movie musicals", "Famous historical speeches", "The Enlightenment", 
+    "Dinosaurs", "Famous historical paintings", "Forensic science", "The American Revolution", "Inventions that changed the world", 
+    "Industrial Revolution", "Broadway legends", "Historic music genres", "Wonders of the Ancient World", "Native American history", 
+    "Prohibition", "Space telescopes", "Women in history", "Music videos", "Great scientific minds", 
+    "Early cinema", "Punk rock", "World food history", "Mythological creatures", "Comedy legends", 
+    "Early explorers", "Natural history museums", "Astronomy", "Ancient Rome", "Ancient Greece", 
+    "Invention of the airplane", "Nobel laureates in science", "Pirates", "Shakespearean plays", "Famous philosophers", 
+    "Art history", "Supernatural legends", "Circus history", "Comic book artists", "Classic literature quotes", 
+    "80s cartoons", "Famous murders", "Urban legends", "Extreme sports", "Music charts", 
+    "Historical diseases", "Fairytales and folklore", "Nobel Prize in Literature", "Victorian England", "Global protests", 
+    "The Great Depression", "Historical weapons", "Environmental movements", "Christmas traditions", "Modern dance", 
+    "Musical genres from the 60s", "Famous athletes of the 20th century", "Space technology", "African American history", "Famous female politicians", 
+    "Renaissance painters", "Gender equality movements", "Rock festivals", "History of photography", "Monarchy history", 
+    "Comic book movies", "Ancient rituals", "Steam engines", "Victorian fashion", "Nature documentaries", 
+    "World folk music", "Famous historical documents", "Classic board games", "Inventions of the 21st century", "Hidden treasures", 
+    "Ancient texts and manuscripts", "Famous food chefs", "Mid-century architecture", "Medieval kings and queens", "Famous sports teams", 
+    "US history", "Famous TV villains", "Bizarre laws around the world", "World mythologies", "Art exhibitions", 
+    "Scientific explorations", "Renaissance festivals", "Classic sci-fi literature", "Medieval knights", "International film festivals", 
+    "Music charts in the 70s", "The Silk Road", "Renaissance art", "Old Hollywood stars", "Political dynasties", 
+    "Ancient inventions", "Famous spies", "2000s fashion", "Famous libraries", "Color theory in art", 
+    "History of robotics", "Music producers", "Nobel Peace Prize winners", "Ancient philosophy", "Viking history", 
+    "Mysterious disappearances", "Famous art heists", "Ancient medicine", "Pirates of the Caribbean", "Early civilizations", 
+    "Famous historical novels", "Global economic history", "Archaeological discoveries", "Rock legends", "World capitals trivia", 
+    "Famous movie directors", "Animal migration", "History of the internet", "Famous television writers", "Famous cartoonists", 
+    "Famous philosophers of the 20th century", "Olympic athletes of all time", "Medieval architecture", "Music theory terms", "The Beatles", 
+    "Classical architecture", "Romanticism in art", "Internet culture", "2000s TV shows", "Military strategies in history", 
+    "The Great Wall of China", "Chinese philosophy", "Space exploration milestones", "History of banking", "Baroque art", 
+    "Beatles songs", "Famous space missions", "The Industrial Age", "Victorian novels", "Pop culture references", 
+    "Modern superheroes", "American authors", "90s music", "Global cities", "Early computer science", 
+    "Classic cinema icons", "First ladies of the United States", "Women in entertainment", "Famous classical operas", "The Salem witch trials", 
+    "Ancient Chinese inventions", "Nobel Prize in Peace", "Famous fashion icons", "Renaissance artists", "Jazz history", 
+    "Golden Age of Television", "Famous historical diaries", "Famous World War II generals", "90s video games", "Shakespeare's works", 
+    "Classic board game design", "History of circus performances", "Mountaineering expeditions", "Ancient Rome vs. Ancient Greece", "Famous mathematicians of history", 
+    "The evolution of the internet", "Renowned chefs and their dishes", "Black History Month trivia", "Ancient Egyptian gods", "Legendary actors and actresses", 
+    "Feminism in history", "Environmental disasters", "Music legends of the 60s", "History of the telephone", "Classic detective novels", 
+    "Ancient libraries", "Mythological heroes", "Endangered species", "World War I leaders", "The Great Fire of London", 
+    "Classic punk bands", "Gold Rush history", "The Spanish Inquisition", "History of skateboarding", "History of chocolate", 
+    "History of theater", "The art of brewing", "The history of toys and games"
 ]
 
 # List of emojis for player icons
@@ -172,15 +228,30 @@ def suggest_random_topic(game_id, username=None):
         logger.debug(f"Game {game_id}: Disliked topics for {username}: {disliked_topic_names}")
         logger.debug(f"Game {game_id}: Random click count for {username}: {random_click_counters[game_id][username]}")
 
+        # Base candidate topics exclude disliked and recent topics
         candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in disliked_topic_names]
         candidate_topics = [t for t in candidate_topics if t not in recent_random_topics[game_id] and t != (last_topic or "")]
 
-        topic = random.choice(candidate_topics or RANDOM_TOPICS)
+        # Introduce liked topics less frequently (every 5th click) and with randomness
+        click_count = random_click_counters[game_id][username]
+        use_liked = click_count > 0 and click_count % 5 == 0 and liked_topic_names and random.random() < 0.6  # 60% chance to use liked topic on 5th click
+
+        if use_liked:
+            liked_candidates = [t for t in liked_topic_names if t not in recent_random_topics[game_id] and t != (last_topic or "")]
+            if liked_candidates:
+                topic = random.choice(liked_candidates)
+                logger.debug(f"Game {game_id}: Selected liked topic '{topic}' for {username} on click {click_count}")
+            else:
+                topic = random.choice(candidate_topics or RANDOM_TOPICS)
+                logger.debug(f"Game {game_id}: No available liked topics, using random '{topic}' for {username}")
+        else:
+            topic = random.choice(candidate_topics or RANDOM_TOPICS)
+            logger.debug(f"Game {game_id}: Selected random topic '{topic}' for {username}")
+
         random_click_counters[game_id][username] += 1
         recent_random_topics[game_id].append(topic)
         if len(recent_random_topics[game_id]) > 3:
             recent_random_topics[game_id].pop(0)
-        logger.debug(f"Game {game_id}: Suggested random topic '{topic}' for {username}")
         return topic
     except Exception as e:
         logger.error(f"Error fetching random topic for game {game_id}, user {username}: {str(e)}")
@@ -640,28 +711,6 @@ def handle_select_topic(data):
         if Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first().username != username:
             socketio.emit('error', {'message': 'Not your turn'}, to=request.sid)
             return
-
-        click_count = random_click_counters.get(game_id, {}).get(username, 0)
-        use_liked = click_count > 0 and click_count % 3 == 0
-        liked_topic_names = []
-        if use_liked and not topic:
-            liked_topics = db.session.query(Topic.normalized_name
-                ).join(Rating, Rating.topic_id == Topic.id
-                ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 1
-                ).group_by(Topic.normalized_name
-                ).all()
-            liked_topic_names = [t.normalized_name for t in liked_topics]
-            last_topic = Topic.query.get(db.session.query(Question.topic_id).filter(Question.game_id == game_id).order_by(Question.id.desc()).first()[0]).normalized_name if db.session.query(Question).filter(Question.game_id == game_id).count() > 0 else None
-            liked_candidates = [t for t in liked_topic_names if t not in recent_random_topics.get(game_id, []) and t != (last_topic or "")]
-            if liked_candidates:
-                topic = random.choice(liked_candidates)
-                logger.debug(f"Game {game_id}: Forced liked topic '{topic}' for {username} on 3rd submit")
-            else:
-                topic = suggest_random_topic(game_id, username)
-                logger.debug(f"Game {game_id}: No liked topics available, used random '{topic}' for {username}")
-
-        if use_liked and topic in liked_topic_names:
-            random_click_counters[game_id][username] = 0
 
         if not topic:
             topic = suggest_random_topic(game_id, username)
