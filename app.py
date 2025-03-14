@@ -701,7 +701,7 @@ def handle_start_game(data):
         current_player = players[game.current_player_index] if players else None
         if current_player and current_player.disconnected:
             current_player = get_next_active_player(game_id)
-        logger.debug(f"Game {game_id} started; current player: {current_player.username if current_player else 'None'} at index {game.current_player_index}")
+        logger.debug(f"Game {game_id} started; current player: {current_player.username if current_player else 'None'} at index {game.current_player_index}; broadcasting to room")
         socketio.emit('game_started', {
             'current_player': current_player.username if current_player else None,
             'players': [p.username for p in players],
@@ -842,8 +842,9 @@ def handle_submit_answer(data):
 
         active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
         answers_submitted = Answer.query.filter_by(game_id=game_id, question_id=current_question_id).count()
-        if answers_submitted == len(active_players):
-            logger.debug(f"Game {game_id}: All players answered, processing results")
+        logger.debug(f"Game {game_id}: {answers_submitted}/{len(active_players)} active players answered")
+        if answers_submitted >= len(active_players):
+            logger.debug(f"Game {game_id}: All active players answered, processing results")
             if game_id in active_timers:
                 active_timers[game_id].cancel()
                 del active_timers[game_id]
