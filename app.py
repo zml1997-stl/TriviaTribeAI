@@ -698,7 +698,6 @@ def handle_submit_answer(data):
                         update_game_activity(game_id)
 
 @socketio.on('submit_feedback')
-@socketio.on('submit_feedback')
 def handle_feedback(data):
     game_id = data.get('game_id')
     topic_id = data.get('topic_id')
