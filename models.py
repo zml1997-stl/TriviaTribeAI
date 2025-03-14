@@ -82,11 +82,11 @@ class Rating(db.Model):
     game_id = db.Column(db.String(4), db.ForeignKey('games.id'), nullable=False)
     player_id = db.Column(db.Integer, db.ForeignKey('players.id'), nullable=False)
     topic_id = db.Column(db.Integer, db.ForeignKey('topics.id'), nullable=False)
-    rating = db.Column(db.Integer, nullable=False)  # 0-5 scale
+    rating = db.Column(db.Boolean, nullable=False)  # True = Like, False = Dislike
 
     __table_args__ = (
         db.UniqueConstraint('game_id', 'player_id', 'topic_id', name='unique_rating_per_game_player_topic'),
     )
 
     def __repr__(self):
-        return f'<Rating {self.rating} by Player {self.player_id} for Topic {self.topic_id}>'
+        return f'<Rating {"Like" if self.rating else "Dislike"} by Player {self.player_id} for Topic {self.topic_id}>'
