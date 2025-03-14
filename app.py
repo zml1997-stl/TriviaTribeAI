@@ -21,68 +21,11 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # List of random trivia topics
-# List of random trivia topics
 RANDOM_TOPICS = [
-    "3rd grade math", "Business", "2010s music", "80s nostalgia", "Famous inventions", 
-    "World history", "Mythology", "Animal kingdom", "Space exploration", "Famous authors", 
-    "Food and cuisine", "Famous landmarks", "Olympic history", "Pop culture", "Famous movie quotes", 
-    "Geography", "Superheroes", "Modern art", "Scientific discoveries", "Historical events", 
-    "US presidents", "Fashion trends", "Classic literature", "Broadway musicals", "Medical breakthroughs", 
-    "Ancient civilizations", "Video game history", "Technology innovations", "Sports trivia", "Famous paintings", 
-    "Iconic TV shows", "Music festivals", "World religions", "Presidents of other countries", "Film directors", 
-    "Musical instruments", "Historical figures", "90s cartoons", "Natural wonders", "Famous scientists", 
-    "Classic cars", "Environmental issues", "Art movements", "70s rock music", "Political scandals", 
-    "World capitals", "Winter holidays", "Dance styles", "Popular board games", "Famous photographers", 
-    "Architecture", "Classic literature adaptations", "Inventions by women", "World War II", "Famous TV hosts", 
-    "Famous duos in history", "Famous criminals", "Inventions in the 20th century", "Lost civilizations", "Space missions", 
-    "Languages", "Famous artists", "World sports tournaments", "Underwater exploration", "Famous beaches", 
-    "Political revolutions", "Famous explorers", "Wild West history", "The Renaissance", "Famous writers of the 20th century", 
-    "African history", "Historical wars", "Technology companies", "Global warming", "Ancient architecture", 
-    "Civil rights movements", "Favorite childhood snacks", "Legendary monsters and cryptids", "Historical novels", "Scientific theories", 
-    "Major historical treaties", "World fairs", "Golden Age of Hollywood", "Famous mathematicians", "Famous comedians", 
-    "Surrealist artists", "Unsolved mysteries", "World Trade history", "Chinese dynasties", "Ancient Egypt", 
-    "Music theory", "Wildlife conservation", "Famous political speeches", "Social movements", "Vintage TV shows", 
-    "Film noir", "Rock ‘n’ roll pioneers", "Hip-hop history", "Fashion designers", "Great explorers of the seas", 
-    "Major natural disasters", "Ballet history", "Horror movie icons", "Futurism", "Street art", 
-    "Political ideologies", "Nobel Prize winners", "Classical composers", "Modern philosophy", "Cold War", 
-    "World War I", "Civilizations of Mesoamerica", "Classic movie musicals", "Famous historical speeches", "The Enlightenment", 
-    "Dinosaurs", "Famous historical paintings", "Forensic science", "The American Revolution", "Inventions that changed the world", 
-    "Industrial Revolution", "Broadway legends", "Historic music genres", "Wonders of the Ancient World", "Native American history", 
-    "Prohibition", "Space telescopes", "Women in history", "Music videos", "Great scientific minds", 
-    "Early cinema", "Punk rock", "World food history", "Mythological creatures", "Comedy legends", 
-    "Early explorers", "Natural history museums", "Astronomy", "Ancient Rome", "Ancient Greece", 
-    "Invention of the airplane", "Nobel laureates in science", "Pirates", "Shakespearean plays", "Famous philosophers", 
-    "Art history", "Supernatural legends", "Circus history", "Comic book artists", "Classic literature quotes", 
-    "80s cartoons", "Famous murders", "Urban legends", "Extreme sports", "Music charts", 
-    "Historical diseases", "Fairytales and folklore", "Nobel Prize in Literature", "Victorian England", "Global protests", 
-    "The Great Depression", "Historical weapons", "Environmental movements", "Christmas traditions", "Modern dance", 
-    "Musical genres from the 60s", "Famous athletes of the 20th century", "Space technology", "African American history", "Famous female politicians", 
-    "Renaissance painters", "Gender equality movements", "Rock festivals", "History of photography", "Monarchy history", 
-    "Comic book movies", "Ancient rituals", "Steam engines", "Victorian fashion", "Nature documentaries", 
-    "World folk music", "Famous historical documents", "Classic board games", "Inventions of the 21st century", "Hidden treasures", 
-    "Ancient texts and manuscripts", "Famous food chefs", "Mid-century architecture", "Medieval kings and queens", "Famous sports teams", 
-    "US history", "Famous TV villains", "Bizarre laws around the world", "World mythologies", "Art exhibitions", 
-    "Scientific explorations", "Renaissance festivals", "Classic sci-fi literature", "Medieval knights", "International film festivals", 
-    "Music charts in the 70s", "The Silk Road", "Renaissance art", "Old Hollywood stars", "Political dynasties", 
-    "Ancient inventions", "Famous spies", "2000s fashion", "Famous libraries", "Color theory in art", 
-    "History of robotics", "Music producers", "Nobel Peace Prize winners", "Ancient philosophy", "Viking history", 
-    "Mysterious disappearances", "Famous art heists", "Ancient medicine", "Pirates of the Caribbean", "Early civilizations", 
-    "Famous historical novels", "Global economic history", "Archaeological discoveries", "Rock legends", "World capitals trivia", 
-    "Famous movie directors", "Animal migration", "History of the internet", "Famous television writers", "Famous cartoonists", 
-    "Famous philosophers of the 20th century", "Olympic athletes of all time", "Medieval architecture", "Music theory terms", "The Beatles", 
-    "Classical architecture", "Romanticism in art", "Internet culture", "2000s TV shows", "Military strategies in history", 
-    "The Great Wall of China", "Chinese philosophy", "Space exploration milestones", "History of banking", "Baroque art", 
-    "Beatles songs", "Famous space missions", "The Industrial Age", "Victorian novels", "Pop culture references", 
-    "Modern superheroes", "American authors", "90s music", "Global cities", "Early computer science", 
-    "Classic cinema icons", "First ladies of the United States", "Women in entertainment", "Famous classical operas", "The Salem witch trials", 
-    "Ancient Chinese inventions", "Nobel Prize in Peace", "Famous fashion icons", "Renaissance artists", "Jazz history", 
-    "Golden Age of Television", "Famous historical diaries", "Famous World War II generals", "90s video games", "Shakespeare's works", 
-    "Classic board game design", "History of circus performances", "Mountaineering expeditions", "Ancient Rome vs. Ancient Greece", "Famous mathematicians of history", 
-    "The evolution of the internet", "Renowned chefs and their dishes", "Black History Month trivia", "Ancient Egyptian gods", "Legendary actors and actresses", 
-    "Feminism in history", "Environmental disasters", "Music legends of the 60s", "History of the telephone", "Classic detective novels", 
-    "Ancient libraries", "Mythological heroes", "Endangered species", "World War I leaders", "The Great Fire of London", 
-    "Classic punk bands", "Gold Rush history", "The Spanish Inquisition", "History of skateboarding", "History of chocolate", 
-    "History of theater", "The art of brewing", "The history of toys and games"
+    "3rd grade math", "Business", "2010s music", "80s nostalgia", "Famous inventions",
+    "World history", "Mythology", "Animal kingdom", "Space exploration", "Famous authors",
+    "Video games", "Physics", "Chemistry", "Biology", "Geography", "Art history",
+    "Classical music", "Pop culture", "Sports trivia", "Ancient civilizations"
 ]
 
 # List of emojis for player icons
@@ -230,13 +173,11 @@ def suggest_random_topic(game_id, username=None):
         logger.debug(f"Game {game_id}: Disliked topics for {username}: {disliked_topic_names}")
         logger.debug(f"Game {game_id}: Random click count for {username}: {random_click_counters[game_id][username]}")
 
-        # Base candidate topics exclude disliked and recent topics
         candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in disliked_topic_names]
         candidate_topics = [t for t in candidate_topics if t not in recent_random_topics[game_id] and t != (last_topic or "")]
 
-        # Introduce liked topics less frequently (every 5th click) and with randomness
         click_count = random_click_counters[game_id][username]
-        use_liked = click_count > 0 and click_count % 5 == 0 and liked_topic_names and random.random() < 0.6  # 60% chance
+        use_liked = click_count > 0 and click_count % 5 == 0 and liked_topic_names and random.random() < 0.6
 
         if use_liked:
             liked_candidates = [t for t in liked_topic_names if t not in recent_random_topics[game_id] and t != (last_topic or "")]
@@ -270,11 +211,11 @@ def suggest_random_topic(game_id, username=None):
 def get_trivia_question(topic, game_id):
     try:
         cached_question = Question.query.filter_by(game_id=game_id, topic_id=get_or_create_topic(topic).id).order_by(func.random()).first()
-        if cached_question and random.random() < 0.5:  # 50% chance to reuse cached question
+        if cached_question and random.random() < 0.5:
             return {
                 "question": cached_question.question_text,
                 "answer": cached_question.answer_text,
-                "options": [cached_question.answer_text, "Option B", "Option C", "Option D"],  # Simplified distractors
+                "options": [cached_question.answer_text, "Option B", "Option C", "Option D"],
                 "explanation": "Retrieved from cache"
             }
 
@@ -337,23 +278,34 @@ def get_trivia_question(topic, game_id):
         }
 
 def get_next_active_player(game_id):
-    game = Game.query.filter_by(id=game_id).first()
-    if not game:
+    with app.app_context():
+        game = Game.query.filter_by(id=game_id).first()
+        if not game:
+            logger.error(f"Game {game_id} not found in get_next_active_player")
+            return None
+        players = Player.query.filter_by(game_id=game_id).order_by(Player.id).all()
+        if not players:
+            logger.debug(f"No players in game {game_id}")
+            return None
+        
+        active_players = [p for p in players if not p.disconnected]
+        if not active_players:
+            logger.debug(f"No active players in game {game_id}")
+            return None
+
+        current_index = game.current_player_index
+        num_players = len(players)
+        for _ in range(num_players):
+            current_index = (current_index + 1) % num_players
+            next_player = players[current_index]
+            if not next_player.disconnected:
+                game.current_player_index = current_index
+                db.session.commit()
+                logger.debug(f"Game {game_id}: Next active player set to {next_player.username} at index {current_index}")
+                update_game_activity(game_id)
+                return next_player
+        logger.debug(f"No active players found after full loop in game {game_id}")
         return None
-    players = Player.query.filter_by(game_id=game_id, disconnected=False).order_by(Player.id).all()
-    if not players:
-        return None
-    current_index = game.current_player_index
-    num_players = len(players)
-    for _ in range(num_players):
-        current_index = (current_index + 1) % num_players
-        next_player = players[current_index]
-        if not next_player.disconnected:
-            game.current_player_index = current_index
-            db.session.commit()
-            update_game_activity(game_id)
-            return next_player
-    return None
 
 def question_timer(game_id):
     with app.app_context():
@@ -406,6 +358,7 @@ def question_timer(game_id):
                     'next_player': next_player.username,
                     'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                     'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
+                    'disconnected': {p.username: p.disconnected for p in Player.query.filter_by(game_id=game_id).all()},
                     'question_id': current_question.id,
                     'topic_id': current_question.topic_id
                 }, room=game_id)
@@ -429,7 +382,7 @@ def cleanup_inactive_games():
                     if game.id in active_timers:
                         active_timers[game.id].cancel()
                         del active_timers[game.id]
-                    db.session.delete(game)  # Cascades to delete Questions, Answers, etc.
+                    db.session.delete(game)
                     db.session.commit()
                     logger.info(f"Cleaned up inactive game {game.id}")
                     if game.id in recent_random_topics:
@@ -575,13 +528,11 @@ def reset_game(game_id):
                 del active_timers[game_id]
                 logger.debug(f"Cancelled timer for game {game_id} on reset")
 
-            # Reset game state without deleting Questions or Answers
             game.status = 'waiting'
             game.current_player_index = 0
             game.current_question = None
             game.question_start_time = None
             
-            # Reset player scores and connection status
             players = Player.query.filter_by(game_id=game_id).all()
             for player in players:
                 player.score = 0
@@ -591,7 +542,8 @@ def reset_game(game_id):
             socketio.emit('game_reset', {
                 'players': [p.username for p in players],
                 'scores': {p.username: p.score for p in players},
-                'player_emojis': {p.username: p.emoji for p in players}
+                'player_emojis': {p.username: p.emoji for p in players},
+                'disconnected': {p.username: p.disconnected for p in players}
             }, room=game_id)
             update_game_activity(game_id)
             logger.info(f"Game {game_id} successfully reset")
@@ -656,6 +608,7 @@ def handle_join_game_room(data):
                 'players': [p.username for p in players],
                 'scores': {p.username: p.score for p in players},
                 'player_emojis': {p.username: p.emoji for p in players},
+                'disconnected': {p.username: p.disconnected for p in players},
                 'status': game.status,
                 'current_player': current_player.username if current_player else None,
                 'current_question': game.current_question
@@ -686,16 +639,19 @@ def handle_start_game(data):
             socketio.emit('error', {'message': 'Game not found or not host'}, room=game_id)
             return
         game.status = 'in_progress'
+        game.current_player_index = 0
         db.session.commit()
-        players = Player.query.filter_by(game_id=game_id).all()
+        players = Player.query.filter_by(game_id=game_id).order_by(Player.id).all()
         current_player = players[game.current_player_index] if players else None
         if current_player and current_player.disconnected:
             current_player = get_next_active_player(game_id)
+        logger.debug(f"Game {game_id} started; current player: {current_player.username if current_player else 'None'} at index {game.current_player_index}")
         socketio.emit('game_started', {
             'current_player': current_player.username if current_player else None,
             'players': [p.username for p in players],
             'scores': {p.username: p.score for p in players},
-            'player_emojis': {p.username: p.emoji for p in players}
+            'player_emojis': {p.username: p.emoji for p in players},
+            'disconnected': {p.username: p.disconnected for p in players}
         }, room=game_id)
         update_game_activity(game_id)
 
@@ -718,12 +674,21 @@ def handle_select_topic(data):
         if not game or game.status != 'in_progress':
             socketio.emit('error', {'message': 'Game not in progress'}, to=request.sid)
             return
-        player = Player.query.filter_by(username=username, game_id=game_id).first()
+        player = Player.query.filter_by(game_id=game_id, username=username).first()
         if not player:
             logger.error(f"No player found for {username} in game {game_id}")
             socketio.emit('error', {'message': 'Player not found'}, to=request.sid)
             return
-        if Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first().username != username:
+        
+        players = Player.query.filter_by(game_id=game_id).order_by(Player.id).all()
+        if not players or game.current_player_index >= len(players):
+            logger.error(f"Game {game_id}: Invalid current_player_index {game.current_player_index} with {len(players)} players")
+            socketio.emit('error', {'message': 'Game state error'}, to=request.sid)
+            return
+        current_player = players[game.current_player_index]
+        logger.debug(f"Game {game_id}: Current player index {game.current_player_index}, username {current_player.username}, requesting user {username}")
+        
+        if current_player.username != username:
             socketio.emit('error', {'message': 'Not your turn'}, to=request.sid)
             return
 
@@ -861,6 +826,7 @@ def handle_submit_answer(data):
                         'next_player': next_player.username,
                         'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                         'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
+                        'disconnected': {p.username: p.disconnected for p in Player.query.filter_by(game_id=game_id).all()},
                         'question_id': current_question.id,
                         'topic_id': current_question.topic_id
                     }, room=game_id)
