@@ -13,7 +13,7 @@ from models import db, migrate, Game, Player, Topic, Question, Answer, Rating
 from sqlalchemy import create_engine, func
 from sqlalchemy.exc import SQLAlchemyError
 from tenacity import retry, stop_after_attempt, wait_fixed
-import timeout_decorator  # Requires: pip install timeout-decorator
+import timeout_decorator
 import threading
 
 # Configure logging
@@ -252,7 +252,7 @@ def suggest_random_topic(game_id, username=None):
 @timeout_decorator.timeout(5, timeout_exception=TimeoutError)
 def get_trivia_question(topic):
     try:
-        model = genai.GenerativeModel('gemini-1.5-flash')  # Updated model name
+        model = genai.GenerativeModel('gemini-1.5-flash')
         prompt = f"""
         Generate a trivia question about "{topic}" with a single, clear answer.
         Requirements:
@@ -347,7 +347,7 @@ def question_timer(game_id):
         db.session.commit()
 
         max_score = max([p.score for p in Player.query.filter_by(game_id=game_id).all()] + [0])
-        if max_score >= 15:
+        if max_score >= 15:  # Updated to 15 points
             socketio.emit('game_ended', {
                 'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                 'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
@@ -522,13 +522,24 @@ def final_scoreboard(game_id):
 def reset_game(game_id):
     try:
         with app.app_context():
+            # Validate session
+            session_game_id = session.get('game_id')
+            session_username = session.get('username')
+            if not session_game_id or not session_username or session_game_id != game_id:
+                logger.warning(f"Unauthorized reset attempt for game {game_id} from session {session_game_id}")
+                return jsonify({'error': 'Unauthorized: Invalid session'}), 403
+
             game = Game.query.filter_by(id=game_id).first()
             if not game:
+                logger.error(f"Game {game_id} not found for reset")
                 return jsonify({'error': 'Game not found'}), 404
+
+            logger.info(f"Resetting game {game_id} by {session_username}")
             if game_id in active_timers:
                 active_timers[game_id].cancel()
                 del active_timers[game_id]
                 logger.debug(f"Cancelled timer for game {game_id} on reset")
+
             game.status = 'waiting'
             game.current_player_index = 0
             game.current_question = None
@@ -540,20 +551,23 @@ def reset_game(game_id):
                 player.score = 0
                 player.disconnected = False
             db.session.commit()
-            if game_id in recent_random_topics:
-                del recent_random_topics[game_id]
-            if game_id in random_click_counters:
-                del random_click_counters[game_id]
+
+            # Do NOT clear recent_random_topics or random_click_counters to preserve topic suggestion data
             socketio.emit('game_reset', {
                 'players': [p.username for p in players],
                 'scores': {p.username: p.score for p in players},
                 'player_emojis': {p.username: p.emoji for p in players}
             }, room=game_id)
             update_game_activity(game_id)
-            return Response(status=200)
+            logger.info(f"Game {game_id} successfully reset")
+            return jsonify({'success': 'Game reset successfully'}), 200
+    except SQLAlchemyError as e:
+        logger.error(f"Database error resetting game {game_id}: {str(e)}")
+        db.session.rollback()
+        return jsonify({'error': 'Database error occurred'}), 500
     except Exception as e:
-        logger.error(f"Error resetting game {game_id}: {str(e)}")
-        return jsonify({'error': 'Failed to reset game'}), 500
+        logger.error(f"Unexpected error resetting game {game_id}: {str(e)}")
+        return jsonify({'error': 'Unexpected server error'}), 500
 
 # Socket.IO Handlers
 @socketio.on('connect')
@@ -789,7 +803,7 @@ def handle_submit_answer(data):
 
             max_score = max([p.score for p in Player.query.filter_by(game_id=game_id).all()] + [0])
             current_question = Question.query.filter_by(id=current_question_id).first()
-            if max_score >= 10:
+            if max_score >= 15:  # Updated to 15 points
                 socketio.emit('game_ended', {
                     'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                     'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}
