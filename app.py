@@ -20,14 +20,15 @@ import threading
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# List of random trivia topics (unchanged)
+# List of random trivia topics
 RANDOM_TOPICS = [
     "3rd grade math", "Business", "2010s music", "80s nostalgia", "Famous inventions",
     "World history", "Mythology", "Animal kingdom", "Space exploration", "Famous authors",
-    # ... (rest of the list remains as is, truncated for brevity)
+    "Video games", "Physics", "Chemistry", "Biology", "Geography", "Art history",
+    "Classical music", "Pop culture", "Sports trivia", "Ancient civilizations"
 ]
 
-# List of emojis for player icons (unchanged)
+# List of emojis for player icons
 PLAYER_EMOJIS = [
     "😄", "😂", "😎", "🤓", "🎉", "🚀", "🌟", "🍕", "🎸", "🎮",
     "🏆", "💡", "🌍", "🎨", "📚", "🔥", "💎", "🐱", "🐶", "🌸"
@@ -195,11 +196,10 @@ def suggest_random_topic(game_id, username=None):
 @timeout_decorator.timeout(5, timeout_exception=TimeoutError)
 def get_trivia_question(topic, game_id):
     try:
-        model = genai.GenerativeModel('gemini-2.0-flash')  # Updated to Gemini 2.0 Flash
-        # Fetch previously asked questions for this game from the database
+        model = genai.GenerativeModel('gemini-2.0-flash')
         prior_questions = Question.query.filter_by(game_id=game_id).all()
         prior_questions_list = [f"- {q.question_text} (Answer: {q.answer_text})" for q in prior_questions]
-        prior_questions_str = "\n".join(prior_questions_list[:10]) if prior_questions_list else "None"  # Limit to 10 to avoid prompt overflow
+        prior_questions_str = "\n".join(prior_questions_list[:10]) if prior_questions_list else "None"
 
         prompt = f"""
         Generate a trivia question about "{topic}" with a single, clear answer.
@@ -225,7 +225,6 @@ def get_trivia_question(topic, game_id):
         cleaned_text = response.text.strip().replace('```json', '').replace('```', '')
         question_data = json.loads(cleaned_text)
 
-        # Check for exact duplicates (case-insensitive)
         if any(q.question_text.lower() == question_data['question'].lower() for q in prior_questions):
             raise ValueError("Generated question is a duplicate")
 
@@ -329,7 +328,6 @@ def question_timer(game_id):
                     'topic_id': current_question.topic_id
                 }, room=game_id)
                 socketio.emit('request_feedback', {'topic_id': current_question.topic_id}, room=game_id)
-                db.session.query(Answer).filter_by(game_id=game_id, question_id=current_question_id).delete()
                 db.session.commit()
                 update_game_activity(game_id)
 
@@ -349,7 +347,7 @@ def cleanup_inactive_games():
                     if game.id in active_timers:
                         active_timers[game.id].cancel()
                         del active_timers[game.id]
-                    db.session.delete(game)
+                    db.session.delete(game)  # Cascades to delete Questions, Answers, etc.
                     db.session.commit()
                     logger.info(f"Cleaned up inactive game {game.id}")
                     if game.id in recent_random_topics:
@@ -363,7 +361,7 @@ def cleanup_inactive_games():
 
 socketio.start_background_task(cleanup_inactive_games)
 
-# Routes (unchanged except reset_game)
+# Routes
 @app.route('/')
 def welcome():
     game_id = session.get('game_id')
@@ -495,19 +493,20 @@ def reset_game(game_id):
                 del active_timers[game_id]
                 logger.debug(f"Cancelled timer for game {game_id} on reset")
 
+            # Reset game state without deleting Questions or Answers
             game.status = 'waiting'
             game.current_player_index = 0
             game.current_question = None
             game.question_start_time = None
-            db.session.query(Question).filter_by(game_id=game_id).delete()
-            db.session.query(Answer).filter_by(game_id=game_id).delete()
+            
+            # Reset player scores and connection status
             players = Player.query.filter_by(game_id=game_id).all()
             for player in players:
                 player.score = 0
                 player.disconnected = False
             db.session.commit()
 
-            # recent_random_topics and random_click_counters are preserved for topic suggestions
+            # Preserve recent_random_topics and random_click_counters for session continuity
             socketio.emit('game_reset', {
                 'players': [p.username for p in players],
                 'scores': {p.username: p.score for p in players},
@@ -673,7 +672,6 @@ def handle_select_topic(data):
                 topic_obj = get_or_create_topic(topic)
                 question_data = get_trivia_question(topic, game_id)
                 
-                # Double-check for duplicates (in case AI ignores prompt)
                 prior_questions = Question.query.filter_by(game_id=game_id).all()
                 if any(q.question_text.lower() == question_data['question'].lower() for q in prior_questions):
                     if attempt < max_attempts - 1:
@@ -715,7 +713,7 @@ def handle_select_topic(data):
                 logger.debug(f"Started new 30s timer for game {game_id}")
 
                 update_game_activity(game_id)
-                break  # Exit loop on success
+                break
             except Exception as e:
                 logger.error(f"Error generating question for topic {topic} in game {game_id} (attempt {attempt + 1}): {str(e)}")
                 if attempt < max_attempts - 1:
@@ -803,7 +801,6 @@ def handle_submit_answer(data):
                         'topic_id': current_question.topic_id
                     }, room=game_id)
                     socketio.emit('request_feedback', {'topic_id': current_question.topic_id}, room=game_id)
-                    db.session.query(Answer).filter_by(game_id=game_id, question_id=current_question_id).delete()
                     db.session.commit()
                     update_game_activity(game_id)
 
