@@ -639,7 +639,7 @@ def handle_select_topic(data):
             return
 
         click_count = random_click_counters.get(game_id, {}).get(username, 0)
-        use_liked = click_count > 0 and click_count % 3 == 0
+        use_liked = click_count > 0 and click_count % 1 == 0
         if use_liked and not topic:
             liked_topics = db.session.query(Topic.normalized_name
                 ).join(Rating, Rating.topic_id == Topic.id
