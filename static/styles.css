@@ -1,95 +1,97 @@
 /* Mobile-first global styles */
 body {
-    background: linear-gradient(135deg, #2C1A3B 0%, #4B2E5A 100%); /* Dark purple-blue gradient */
-    color: #F5F5F5; /* Brighter off-white */
+    background: linear-gradient(135deg, #2C1A3B 0%, #4B2E5A 100%);
+    color: #F5F5F5;
     min-height: 100vh;
     padding: 0;
     margin: 0;
     font-family: 'Verdana', sans-serif;
     line-height: 1.4;
+    overflow-x: hidden;
 }
 
 /* Logo Header */
 .brand-header {
     text-align: center;
-    padding: 1rem 0;
-    background-color: #1A1026; /* Deep purple */
-    border-bottom: 2px solid #FF69B4; /* Neon pink */
+    padding: 0.8rem 0;
+    background-color: #1A1026;
+    border-bottom: 2px solid #FF69B4;
 }
 
 .brand-header img {
-    max-width: 150px;
+    max-width: 120px;
     height: auto;
-    filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.5)); /* Neon cyan glow */
+    filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.5));
 }
 
 /* Card base styling */
 .card, .welcome-card, .play-card {
-    background-color: #5A3F73; /* Medium purple */
-    border-radius: 10px;
-    padding: 1.5rem;
-    margin: 1rem auto;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.2); /* Subtler neon cyan glow */
+    background-color: #5A3F73;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 0.5rem auto;
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.2);
     max-width: 100%;
     width: 100%;
-    border: 1px solid #FF69B4; /* Neon pink border */
+    border: 1px solid #FF69B4;
 }
 
 .card-header {
     border-bottom: none;
-    font-size: 1.2rem;
-    color: #00FFFF; /* Neon cyan */
+    font-size: 1.1rem;
+    color: #00FFFF;
     font-weight: 600;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0;
 }
 
 h1 {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     font-weight: 700;
-    color: #FF69B4; /* Neon pink */
-    margin-bottom: 0.75rem;
+    color: #FF69B4;
+    margin-bottom: 0.5rem;
     text-align: center;
-    text-shadow: 0 0 5px rgba(255, 105, 180, 0.5);
+    text-shadow: 0 0 4px rgba(255, 105, 180, 0.5);
 }
 
 h2, h3 {
-    font-size: 1.1rem;
+    font-size: 1rem;
     color: #F5F5F5;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
     text-align: center;
 }
 
 p, .form-label {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: #F5F5F5;
+    margin-bottom: 0.4rem;
 }
 
 .form-label {
     font-weight: 500;
-    margin-bottom: 0.5rem;
     display: block;
 }
 
 /* Input Placeholder Styling */
 #topic-input::placeholder {
-    font-size: 0.85rem; /* Smaller than default for better fit */
-    color: #A0A0A0; /* Muted gray for contrast against purple */
-    opacity: 0.8; /* Slightly transparent to distinguish from entered text */
+    font-size: 0.8rem;
+    color: #A0A0A0;
+    opacity: 0.8;
 }
 
 /* Buttons */
 .btn-primary, .btn-success, .animated-btn {
     background-color: #00FFFF;
     border: none;
-    padding: 0.75rem 1.5rem;
-    font-size: 0.95rem;
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
     font-weight: 600;
     color: #2C1A3B;
-    border-radius: 5px;
+    border-radius: 4px;
     width: 100%;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.4rem;
     transition: background-color 0.2s ease;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
 }
 
 .btn-primary:hover, .btn-success:hover, .animated-btn:hover {
@@ -98,7 +100,7 @@ p, .form-label {
 
 .btn-success {
     background-color: #FF69B4;
-    box-shadow: 0 0 10px rgba(255, 105, 180, 0.5);
+    box-shadow: 0 0 8px rgba(255, 105, 180, 0.5);
 }
 
 .btn-success:hover {
@@ -116,36 +118,35 @@ p, .form-label {
 
 /* Progress Bars */
 .progress {
-    height: 10px;
-    border-radius: 5px;
+    height: 8px;
+    border-radius: 4px;
     background-color: #4B2E5A;
-    margin-bottom: 1rem;
+    margin-bottom: 0.8rem;
 }
 
 .progress-bar {
     transition: width 0.5s ease-in-out;
     background-color: #00FFFF;
-    box-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+    box-shadow: 0 0 4px rgba(0, 255, 255, 0.5);
 }
 
 /* List Group Items (Multiple Choice) */
 .list-group-item {
     cursor: pointer;
     transition: background-color 0.2s ease-in-out;
-    background-color: #5A3F73; /* Medium purple */
+    background-color: #5A3F73;
     color: #F5F5F5;
     border: 1px solid #FF69B4;
-    padding: 1rem;
-    margin-bottom: 0.5rem;
-    font-size: 0.95rem;
+    padding: 0.8rem;
+    margin-bottom: 0.4rem;
+    font-size: 0.9rem;
     text-align: left;
 }
 
-/* Bold the A, B, C, D characters */
 .list-group-item::before {
     content: attr(data-prefix);
     font-weight: bold;
-    margin-right: 0.5rem;
+    margin-right: 0.4rem;
     color: #00FFFF;
 }
 
@@ -158,11 +159,11 @@ p, .form-label {
     border: 2px solid #00FFFF;
     color: #F5F5F5;
     font-weight: 500;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
 }
 
 .list-group-item:hover:not(.active) {
-    background-color: #6A4F83; /* Slightly lighter purple */
+    background-color: #6A4F83;
 }
 
 .list-group-item.disabled {
@@ -176,12 +177,13 @@ p, .form-label {
 #scoreboard table {
     width: 100%;
     text-align: center;
-    margin-top: 1rem;
+    margin-top: 0.8rem;
+    font-size: 0.85rem;
 }
 
 #scoreboard th,
 #scoreboard td {
-    padding: 0.75rem;
+    padding: 0.6rem;
     border-top: 1px solid #FF69B4;
 }
 
@@ -192,81 +194,79 @@ p, .form-label {
 /* Responsive Adjustments */
 @media (min-width: 576px) {
     .card, .welcome-card, .play-card {
-        max-width: 500px;
+        max-width: 480px;
+        padding: 1.2rem;
     }
     .btn-primary, .btn-success, .animated-btn {
         width: auto;
-        margin-right: 0.5rem;
-    }
-    .d-grid.gap-2.d-md-flex.justify-content-md-center {
-        display: flex !important;
-        gap: 1rem;
+        margin-right: 0.4rem;
     }
     h1 {
-        font-size: 2rem;
+        font-size: 1.8rem;
     }
     h2, h3 {
-        font-size: 1.3rem;
+        font-size: 1.2rem;
     }
     .list-group-item {
-        font-size: 1rem;
-        padding: 1.25rem;
+        font-size: 0.95rem;
+        padding: 1rem;
     }
 }
 
 /* Specific Adjustments */
 #topic-display {
-    font-size: 1rem; /* Reduced from 1.2rem for better fit */
-    padding: 0.4rem 0.8rem;
-    background-color: #FF69B4; /* Neon pink */
-    color: #2C1A3B; /* Dark purple */
-    border-radius: 5px;
-    text-shadow: 0 0 5px rgba(255, 105, 180, 0.5);
-    max-width: 100%; /* Ensure it stays within container */
-    word-wrap: break-word; /* Allow text wrapping */
-    display: inline-block; /* Prevent overflow */
-    margin-bottom: 0.5rem; /* Space before question text */
+    font-size: 0.9rem;
+    padding: 0.3rem 0.6rem;
+    background-color: #FF69B4;
+    color: #2C1A3B;
+    border-radius: 4px;
+    text-shadow: 0 0 4px rgba(255, 105, 180, 0.5);
+    max-width: 100%;
+    word-wrap: break-word;
+    display: inline-block;
+    margin-bottom: 0.4rem;
 }
 
 #correct-answer {
     font-weight: bold;
     color: #FF69B4;
-    font-size: 1.1rem;
+    font-size: 1rem;
     text-align: center;
-    text-shadow: 0 0 5px rgba(255, 105, 180, 0.5);
+    text-shadow: 0 0 4px rgba(255, 105, 180, 0.5);
 }
 
 #answer-explanation {
     color: #F5F5F5;
     font-style: italic;
     text-align: center;
+    font-size: 0.85rem;
 }
 
 .waiting-for-answers {
     text-align: center;
-    padding: 1rem;
-    border-radius: 5px;
+    padding: 0.8rem;
+    border-radius: 4px;
     background-color: #5A3F73;
-    margin-bottom: 1rem;
+    margin-bottom: 0.8rem;
 }
 
 #next-round-info {
-    margin-top: 1rem;
-    padding: 1rem;
-    border-radius: 5px;
+    margin-top: 0.8rem;
+    padding: 0.8rem;
+    border-radius: 4px;
     background-color: #5A3F73;
     text-align: center;
 }
 
 .spinner-border {
-    width: 2rem;
-    height: 2rem;
-    margin: 1rem auto;
+    width: 1.5rem;
+    height: 1.5rem;
+    margin: 0.8rem auto;
 }
 
 .badge {
-    font-size: 0.9rem;
-    padding: 0.25rem 0.5rem;
+    font-size: 0.85rem;
+    padding: 0.2rem 0.4rem;
     background-color: #FF69B4;
     color: #2C1A3B;
 }
@@ -274,19 +274,19 @@ p, .form-label {
 /* Music Control Button */
 .music-control-btn {
     position: fixed;
-    bottom: 15px;
-    right: 15px;
-    width: 40px;
-    height: 40px;
+    bottom: 10px;
+    right: 10px;
+    width: 35px;
+    height: 35px;
     background-color: #00FFFF;
     border: none;
     border-radius: 50%;
     color: #2C1A3B;
-    font-size: 1.25rem;
+    font-size: 1.1rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+    box-shadow: 0 0 8px rgba(0, 255, 255, 0.5);
     z-index: 1000;
     cursor: pointer;
     transition: background-color 0.2s ease;
@@ -299,13 +299,13 @@ p, .form-label {
 /* Music Player Popup */
 .music-player {
     position: fixed;
-    bottom: 60px;
-    right: 15px;
-    width: 200px;
+    bottom: 50px;
+    right: 10px;
+    width: 180px;
     background-color: #5A3F73;
-    border-radius: 10px;
-    padding: 1rem;
-    box-shadow: 0 4px 15px rgba(0, 255, 255, 0.3);
+    border-radius: 8px;
+    padding: 0.8rem;
+    box-shadow: 0 4px 12px rgba(0, 255, 255, 0.3);
     z-index: 1001;
     display: none;
 }
@@ -315,10 +315,10 @@ p, .form-label {
 }
 
 .music-player .btn {
-    padding: 0.5rem;
-    font-size: 1rem;
-    width: 45px;
-    margin: 0.25rem;
+    padding: 0.4rem;
+    font-size: 0.9rem;
+    width: 40px;
+    margin: 0.2rem;
     background-color: #00FFFF;
 }
 
@@ -337,23 +337,46 @@ p, .form-label {
 /* Mobile Adjustments */
 @media (max-width: 576px) {
     .music-control-btn {
-        width: 35px;
-        height: 35px;
-        font-size: 1rem;
-    }
-    .music-player {
-        width: 180px;
-        padding: 0.75rem;
-    }
-    .music-player .btn {
-        width: 40px;
-        padding: 0.4rem;
+        width: 30px;
+        height: 30px;
         font-size: 0.9rem;
     }
-    #topic-display {
-        font-size: 0.9rem; /* Smaller on mobile */
-        padding: 0.3rem 0.6rem;
+    .music-player {
+        width: 160px;
+        padding: 0.6rem;
     }
+    .music-player .btn {
+        width: 35px;
+        padding: 0.3rem;
+        font-size: 0.8rem;
+    }
+    #topic-display {
+        font-size: 0.85rem;
+        padding: 0.2rem 0.5rem;
+    }
+}
+
+/* Feedback Form Styling */
+#feedback-form .emoji-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    padding: 0.5rem;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+#feedback-form .emoji-btn:hover {
+    transform: scale(1.2);
+}
+
+#feedback-form .emoji-btn.active {
+    transform: scale(1.3);
+}
+
+#feedback-form .emoji-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* Additional Styles for AI Trivia Game */
@@ -364,16 +387,16 @@ p, .form-label {
 }
 
 .correct-answer {
-    background-color: rgba(0, 255, 0, 0.3); /* Transparent green */
+    background-color: rgba(0, 255, 0, 0.3);
 }
 
 .incorrect-answer {
-    background-color: rgba(255, 0, 0, 0.2); /* Transparent red */
+    background-color: rgba(255, 0, 0, 0.2);
 }
 
 .player-emoji {
-    font-size: 1.5rem;
-    margin-right: 0.5rem;
+    font-size: 1.2rem;
+    margin-right: 0.4rem;
 }
 
 #final-scoreboard {
@@ -382,21 +405,21 @@ p, .form-label {
 
 #final-scoreboard h2 {
     color: #FF69B4;
-    font-size: 1.8rem;
-    margin-bottom: 1rem;
+    font-size: 1.6rem;
+    margin-bottom: 0.8rem;
 }
 
 #final-scoreboard .btn {
-    margin: 0.5rem;
+    margin: 0.4rem;
 }
 
 /* Custom Footer Styling */
 .custom-footer {
     background-color: #1A1026;
     color: #F5F5F5;
-    padding: 1.5rem 0;
+    padding: 1rem 0;
     border-top: 2px solid #FF69B4;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 
 .custom-footer .text-white-50 {
@@ -406,12 +429,12 @@ p, .form-label {
 /* Custom Disclaimer Styling */
 .custom-disclaimer {
     background-color: rgba(255, 105, 180, 0.1);
-    padding: 0.75rem;
-    border-left: 4px solid #FF69B4;
-    border-radius: 5px;
-    margin-bottom: 1rem;
-    font-size: 0.85rem;
-    line-height: 1.5;
+    padding: 0.6rem;
+    border-left: 3px solid #FF69B4;
+    border-radius: 4px;
+    margin-bottom: 0.8rem;
+    font-size: 0.8rem;
+    line-height: 1.4;
 }
 
 .custom-disclaimer strong {
@@ -420,7 +443,7 @@ p, .form-label {
 
 /* Fix for Player Answers Header */
 .card-header.bg-light {
-    background-color: #4B2E5A !important; /* Dark purple to match theme */
-    color: #F5F5F5 !important; /* Off-white for readability */
-    border-bottom: 1px solid #FF69B4; /* Neon pink border */
+    background-color: #4B2E5A !important;
+    color: #F5F5F5 !important;
+    border-bottom: 1px solid #FF69B4;
 }
