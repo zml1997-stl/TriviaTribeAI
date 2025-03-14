@@ -702,7 +702,7 @@ def handle_feedback(data):
     game_id = data.get('game_id')
     topic_id = data.get('topic_id')
     username = data.get('username')
-    rating = data.get('rating')  # Expecting True (Like) or False (Dislike)
+    rating = data.get('rating')  # Expecting True (1) or False (0) from frontend
     with app.app_context():
         player = Player.query.filter_by(username=username, game_id=game_id).first()
         topic = Topic.query.get(topic_id)
@@ -712,20 +712,19 @@ def handle_feedback(data):
         if not topic:
             logger.error(f"No topic found for topic_id {topic_id} in game {game_id}")
             return
-        if not isinstance(rating, bool):
+        if not isinstance(rating, bool):  # Still check for boolean from frontend
             logger.error(f"Invalid rating value: {rating} for {username} in game {game_id}")
             return
         try:
-            # Convert boolean to integer: True -> 1, False -> 0
-            rating_int = 1 if rating else 0
+            rating_value = 1 if rating else 0  # Convert boolean to integer
             existing_rating = Rating.query.filter_by(game_id=game_id, player_id=player.id, topic_id=topic_id).first()
             if existing_rating:
-                existing_rating.rating = rating_int
+                existing_rating.rating = rating_value
             else:
-                new_rating = Rating(game_id=game_id, player_id=player.id, topic_id=topic_id, rating=rating_int)
+                new_rating = Rating(game_id=game_id, player_id=player.id, topic_id=topic_id, rating=rating_value)
                 db.session.add(new_rating)
             db.session.commit()
-            logger.debug(f"Player {username} rated topic {topic.normalized_name} as {'Like' if rating else 'Dislike'} in game {game_id}")
+            logger.debug(f"Player {username} rated topic {topic.normalized_name} as {'Like' if rating_value else 'Dislike'} in game {game_id}")
         except SQLAlchemyError as e:
             logger.error(f"Failed to save rating for {username} on topic {topic_id} in game {game_id}: {str(e)}")
             db.session.rollback()
