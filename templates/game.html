@@ -615,11 +615,11 @@
             document.getElementById('next-player').textContent = data.next_player;
             updateScoreboard(data.scores, data.player_emojis);
             startNextRoundCountdown(data.next_player);
-            currentTopicId = data.topic_id; // Set currentTopicId here to match request_feedback
+            currentTopicId = data.topic_id;
         }
 
         function endGame(data) {
-            console.log('Game ended:', data);
+            console.log('Game ended with scores:', data.scores);
             clearInterval(timerInterval);
             questionDisplay.style.display = 'none';
             resultsDisplay.style.display = 'none';
