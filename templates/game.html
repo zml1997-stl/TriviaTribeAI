@@ -107,8 +107,7 @@
                                     <h4 class="mb-0">Correct Answer</h4>
                                 </div>
                                 <div class="card-body">
-                                    <span class="badge b
-g-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
+                                    <span class="badge bg-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
                                     <p id="results-question-text" class="mb-2"></p>
                                     <p id="correct-answer" class="lead"></p>
                                     <p id="answer-explanation" class="fst-italic"></p>
@@ -210,7 +209,6 @@ g-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
         let currentTopicId = null;
         let currentTopic = null;
         let currentQuestion = null;
-        let disconnectedPlayers = {};  // Track disconnected status
 
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
@@ -305,9 +303,9 @@ g-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
             });
 
             socket.on('game_started', function(data) {
-                console.log('Game started received:', data);
+                console.log('Game started:', data);
                 clearTimeout(startGameTimeout);
-                if (startGameBtn) startGameBtn.disabled = false;
+                startGameBtn.disabled = false;
                 startGameLoading.style.display = 'none';
                 startGame(data);
             });
@@ -336,7 +334,7 @@ g-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
             socket.on('error', function(data) {
                 console.error('Server error:', data.message);
                 alert(`Game error: ${data.message}`);
-                if (startGameBtn) startGameBtn.disabled = false;
+                startGameBtn.disabled = false;
                 startGameLoading.style.display = 'none';
                 if (data.message.includes('Game not found')) {
                     localStorage.removeItem('gameId');
@@ -348,7 +346,7 @@ g-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
             socket.on('player_rejoined', function(data) {
                 console.log(`${data.username} rejoined the game`);
                 updatePlayerList(data.players, data.player_emojis);
-                updateScoreboard(data.scores, data.player_emojis, data.disconnected);
+                updateScoreboard(data.scores, data.player_emojis);
                 hideAllSections();
                 scoreboard.style.display = 'block';
                 leaveGameContainer.style.display = 'block';
@@ -530,11 +528,10 @@ g-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
         }
 
         function startGame(data) {
-            console.log('startGame called with:', data);
             hideAllSections();
             scoreboard.style.display = 'block';
             leaveGameContainer.style.display = 'block';
-            updateScoreboard(data.scores, data.player_emojis, data.disconnected);
+            updateScoreboard(data.scores, data.player_emojis);
             window.switchToGameMusic();
             if (data.current_player === username) {
                 topicSelection.style.display = 'block';
@@ -601,16 +598,9 @@ g-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
                 if (timeLeft <= 0) {
                     clearInterval(timerInterval);
                     console.log('Timer expired');
-                    timerProgress.style.width = '0%';
                     if (!selectedAnswer) {
                         socket.emit('submit_answer', { game_id: gameId, username: username, answer: null });
                         console.log('Submitted null answer due to timeout');
-                        disableAnswerButtons();
-                        document.getElementById('submit-answer-btn').disabled = true;
-                        const playerCount = document.getElementById('player-list').childElementCount;
-                        if (playerCount > 1) {
-                            waitingForAnswers.style.display = 'block';
-                        }
                     }
                 }
             }, 1000);
@@ -661,7 +651,7 @@ g-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
                 playerAnswersList.appendChild(li);
             });
             document.getElementById('next-player').textContent = data.next_player;
-            updateScoreboard(data.scores, data.player_emojis, data.disconnected);
+            updateScoreboard(data.scores, data.player_emojis);
             startNextRoundCountdown(data.next_player);
             currentTopicId = data.topic_id;
         }
@@ -675,16 +665,14 @@ g-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
             window.location.href = `/final_scoreboard/${gameId}`;
         }
 
-        function updateScoreboard(scores, player_emojis, disconnected) {
-            disconnectedPlayers = disconnected || disconnectedPlayers;
+        function updateScoreboard(scores, player_emojis) {
             const scoresTableBody = document.getElementById('scores-table-body');
             scoresTableBody.innerHTML = '';
             const sortedScores = Object.entries(scores).sort((a, b) => b[1] - a[1]);
             sortedScores.forEach(([player, score]) => {
                 const tr = document.createElement('tr');
                 if (player === username) tr.className = 'table-primary';
-                const statusText = disconnectedPlayers[player] ? ' (Disconnected)' : '';
-                tr.innerHTML = `<td><span class="player-emoji">${player_emojis[player]}</span>${player}${statusText}</td><td>${score}</td>`;
+                tr.innerHTML = `<td><span class="player-emoji">${player_emojis[player]}</span>${player}</td><td>${score}</td>`;
                 scoresTableBody.appendChild(tr);
             });
         }
@@ -717,11 +705,11 @@ g-secondary mb-2">Topic: <span id="results-topic-display"></span></span>
             waitingLobby.style.display = 'block';
             scoreboard.style.display = 'none';
             leaveGameContainer.style.display = 'none';
-            if (startGameBtn) startGameBtn.disabled = false;
+            startGameBtn.disabled = false;
             startGameLoading.style.display = 'none';
             window.switchToHomeMusic();
             updatePlayerList(data.players, data.player_emojis);
-            updateScoreboard(data.scores, data.player_emojis, data.disconnected);
+            updateScoreboard(data.scores, data.player_emojis);
         }
     </script>
 </body>
