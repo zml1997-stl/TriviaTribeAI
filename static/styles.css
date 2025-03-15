@@ -334,6 +334,89 @@ p, .form-label {
     background-color: #FF4A92;
 }
 
+/* Chat Control Button */
+.chat-control-btn {
+    position: fixed;
+    bottom: 10px;
+    right: 55px; /* Positioned to the left of music button */
+    width: 35px;
+    height: 35px;
+    background-color: #FF69B4;
+    border: none;
+    border-radius: 50%;
+    color: #2C1A3B;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 8px rgba(255, 105, 180, 0.5);
+    z-index: 1000;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.chat-control-btn:hover {
+    background-color: #FF4A92;
+}
+
+/* Chat Popup */
+.chat-box {
+    position: fixed;
+    bottom: 50px;
+    right: 55px;
+    width: 250px;
+    background-color: #5A3F73;
+    border-radius: 8px;
+    padding: 0.8rem;
+    box-shadow: 0 4px 12px rgba(0, 255, 255, 0.3);
+    z-index: 1001;
+    display: none;
+}
+
+.chat-box.active {
+    display: block;
+}
+
+.chat-messages {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    background-color: #4B2E5A;
+    border-radius: 4px;
+}
+
+.chat-message {
+    font-size: 0.8rem;
+    margin-bottom: 0.3rem;
+    word-wrap: break-word;
+}
+
+.chat-message .username {
+    color: #00FFFF;
+    font-weight: bold;
+}
+
+.chat-message .message {
+    color: #F5F5F5;
+}
+
+.chat-input {
+    width: 100%;
+    padding: 0.4rem;
+    font-size: 0.8rem;
+    background-color: #6A4F83;
+    border: 1px solid #FF69B4;
+    color: #F5F5F5;
+    border-radius: 4px;
+}
+
+.chat-input:focus {
+    outline: none;
+    border-color: #00FFFF;
+    box-shadow: 0 0 4px rgba(0, 255, 255, 0.5);
+}
+
 /* Mobile Adjustments */
 @media (max-width: 576px) {
     .music-control-btn {
@@ -353,6 +436,20 @@ p, .form-label {
     #topic-display {
         font-size: 0.85rem;
         padding: 0.2rem 0.5rem;
+    }
+    .chat-control-btn {
+        width: 30px;
+        height: 30px;
+        font-size: 0.9rem;
+        right: 50px; /* Adjusted for mobile */
+    }
+    .chat-box {
+        width: 200px;
+        right: 50px;
+        padding: 0.6rem;
+    }
+    .chat-messages {
+        max-height: 120px;
     }
 }
 
