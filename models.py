@@ -30,6 +30,7 @@ class Player(db.Model):
     score = db.Column(db.Integer, default=0)
     emoji = db.Column(db.String(10))
     disconnected = db.Column(db.Boolean, default=False)
+    sid = db.Column(db.String(120), nullable=True)  # Added for Socket.IO session ID
 
     answers = db.relationship('Answer', backref='player', lazy=True, cascade='all, delete-orphan')
     ratings = db.relationship('Rating', backref='player', lazy=True, cascade='all, delete-orphan')
