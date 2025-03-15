@@ -672,8 +672,8 @@ def handle_join_game_room(data):
             socketio.emit('player_rejoined', {
                 'username': username,
                 'players': [p.username for p in players],
-                'scores': {p.username: p.score for p in players},
-                'player_emojis': {p.username: p.emoji for p in players},
+                'scores': {p.username: p.score for p in players],
+                'player_emojis': {p.username: p.emoji for p in players],
                 'status': game.status,
                 'current_player': current_player.username if current_player else None,
                 'current_question': game.current_question
@@ -712,7 +712,7 @@ def handle_start_game(data):
         socketio.emit('game_started', {
             'current_player': current_player.username if current_player else None,
             'players': [p.username for p in players],
-            'scores': {p.username: p.score for p in players},
+            'scores': {p.username: p.score for p in players],
             'player_emojis': {p.username: p.emoji for p in players}
         }, room=game_id)
         update_game_activity(game_id)
@@ -890,6 +890,27 @@ def handle_feedback(data):
             logger.error(f"Failed to save rating for {username} on topic {topic_id} in game {game_id}: {str(e)}")
             db.session.rollback()
             socketio.emit('error', {'message': 'Failed to save rating'}, to=request.sid)
+
+@socketio.on('send_chat_message')
+def handle_chat_message(data):
+    game_id = data.get('game_id')
+    username = data.get('username')
+    message = data.get('message')
+    with app.app_context():
+        game = Game.query.filter_by(id=game_id).first()
+        if not game:
+            socketio.emit('error', {'message': 'Game not found'}, to=request.sid)
+            return
+        player = Player.query.filter_by(game_id=game_id, username=username).first()
+        if not player or player.disconnected:
+            socketio.emit('error', {'message': 'Player not in game or disconnected'}, to=request.sid)
+            return
+        socketio.emit('chat_message', {
+            'username': username,
+            'message': message
+        }, room=game_id)
+        logger.debug(f"Game {game_id}: Chat message from {username}: {message}")
+        update_game_activity(game_id)
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
