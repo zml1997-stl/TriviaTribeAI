@@ -484,11 +484,15 @@ p, .form-label {
 }
 
 .correct-answer {
-    background-color: rgba(0, 255, 0, 0.3);
+    background-color: #00CC00; /* More opaque green */
+    color: #2C1A3B; /* Darker text for contrast */
+    font-weight: 600; /* Slightly bolder for emphasis */
 }
 
 .incorrect-answer {
-    background-color: rgba(255, 0, 0, 0.2);
+    background-color: #CC0000; /* More opaque red */
+    color: #F5F5F5; /* Keep white text, but ensure it pops */
+    font-weight: 600;
 }
 
 .player-emoji {
