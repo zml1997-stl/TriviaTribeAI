@@ -94,6 +94,7 @@ PLAYER_EMOJIS = [
 active_timers = {}
 random_click_counters = {}  # Structure: {game_id: {username: count}}
 recent_random_topics = {}   # Structure: {game_id: [topics]}
+unread_messages = {}        # Structure: {game_id: {username: count}}
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -277,7 +278,7 @@ def get_trivia_question(topic, game_id):
 
         model = genai.GenerativeModel('gemini-2.0-flash')
         prior_questions = Question.query.filter_by(game_id=game_id).all()
-        prior_questions_list = [f"- {q.question_text} (Answer: {q.answer_text})" for q in prior_questions]
+        prior_questions_list = [f"- Question: {q.question_text} (Answer: {q.answer_text})" for q in prior_questions]
         prior_questions_str = "\n".join(prior_questions_list[:10]) if prior_questions_list else "None"
 
         prompt = f"""
@@ -287,9 +288,9 @@ def get_trivia_question(topic, game_id):
         - Avoid current events or topics requiring information after December 31, 2024.
         - Ensure factual accuracy and clarity in wording.
         - Avoid ambiguity or multiple possible answers.
-        - Do NOT repeat or closely mimic any of the following previously used questions and answers in this game:
+        - Do NOT repeat, rephrase, or closely mimic any of the following previously used questions or their answers in this game (avoid similar questions with answers that are the same or conceptually close):
           {prior_questions_str}
-        - Provide four multiple-choice options: one correct answer and three plausible distractors.
+        - Provide four multiple-choice options: one correct answer and three plausible distractors that are distinctly different from prior answers.
         - Include a brief explanation (1-2 sentences) of the correct answer.
         - Format the response in JSON with the following structure:
           ```json
@@ -304,8 +305,13 @@ def get_trivia_question(topic, game_id):
         cleaned_text = response.text.strip().replace('```json', '').replace('```', '')
         question_data = json.loads(cleaned_text)
 
-        if any(q.question_text.lower() == question_data['question'].lower() for q in prior_questions):
-            raise ValueError("Generated question is a duplicate")
+        # Double-check for similarity in questions or answers
+        for q in prior_questions:
+            if (q.question_text.lower() == question_data['question'].lower() or 
+                q.answer_text.lower() == question_data['answer'].lower() or
+                (q.answer_text.lower() in question_data['answer'].lower() or 
+                 question_data['answer'].lower() in q.answer_text.lower())):
+                raise ValueError("Generated question or answer is too similar to a prior one")
 
         return question_data
     except json.JSONDecodeError as e:
@@ -330,7 +336,7 @@ def get_trivia_question(topic, game_id):
             "question": f"What is a fact about {topic}?",
             "answer": "Unable to generate",
             "options": ["A", "B", "C", "D"],
-            "explanation": "Error with AI service or duplicate detected."
+            "explanation": "Error with AI service or similarity detected."
         }
 
 def get_next_active_player(game_id):
@@ -448,6 +454,8 @@ def cleanup_inactive_games():
                         del recent_random_topics[game.id]
                     if game.id in random_click_counters:
                         del random_click_counters[game.id]
+                    if game.id in unread_messages:
+                        del unread_messages[game.id]
         except Exception as e:
             logger.error(f"Error in cleanup_inactive_games: {str(e)}")
             db.session.rollback()
@@ -600,7 +608,7 @@ def reset_game(game_id):
 
             socketio.emit('game_reset', {
                 'players': [p.username for p in players],
-                'scores': {p.username: p.score for p in players},
+                'scores': {p.username: p.score for p in players],
                 'player_emojis': {p.username: p.emoji for p in players}
             }, room=game_id)
             update_game_activity(game_id)
@@ -666,6 +674,7 @@ def handle_join_game_room(data):
         player = Player.query.filter_by(game_id=game_id, username=username).first()
         if player:
             player.disconnected = False
+            player.sid = request.sid  # Store the Socket.IO session ID
             db.session.commit()
             join_room(game_id)
             players = Player.query.filter_by(game_id=game_id).all()
@@ -673,15 +682,15 @@ def handle_join_game_room(data):
             socketio.emit('player_rejoined', {
                 'username': username,
                 'players': [p.username for p in players],
-                'scores': {p.username: p.score for p in players},
-                'player_emojis': {p.username: p.emoji for p in players},
+                'scores': {p.username: p.score for p in players],
+                'player_emojis': {p.username: p.emoji for p in players],
                 'status': game.status,
                 'current_player': current_player.username if current_player else None,
                 'current_question': game.current_question
             }, room=game_id)
         elif game.status == 'waiting' and Player.query.filter_by(game_id=game_id).count() < 10:
             available_emojis = [e for e in PLAYER_EMOJIS if e not in [p.emoji for p in Player.query.filter_by(game_id=game_id).all()]]
-            new_player = Player(game_id=game_id, username=username, score=0, emoji=random.choice(available_emojis) if available_emojis else random.choice(PLAYER_EMOJIS), disconnected=False)
+            new_player = Player(game_id=game_id, username=username, score=0, emoji=random.choice(available_emojis) if available_emojis else random.choice(PLAYER_EMOJIS), disconnected=False, sid=request.sid)
             db.session.add(new_player)
             db.session.commit()
             join_room(game_id)
@@ -693,6 +702,12 @@ def handle_join_game_room(data):
             }, room=game_id)
         else:
             socketio.emit('error', {'message': 'Game is full or already started'}, to=request.sid)
+        # Initialize unread count for this player
+        if game_id not in unread_messages:
+            unread_messages[game_id] = {}
+        if username not in unread_messages[game_id]:
+            unread_messages[game_id][username] = 0
+        socketio.emit('update_unread_count', {'count': unread_messages[game_id][username]}, to=request.sid)
         update_game_activity(game_id)
 
 @socketio.on('start_game')
@@ -713,7 +728,7 @@ def handle_start_game(data):
         socketio.emit('game_started', {
             'current_player': current_player.username if current_player else None,
             'players': [p.username for p in players],
-            'scores': {p.username: p.score for p in players},
+            'scores': {p.username: p.score for p in players],
             'player_emojis': {p.username: p.emoji for p in players}
         }, room=game_id)
         update_game_activity(game_id)
@@ -912,12 +927,39 @@ def handle_chat_message(data):
         if not player or player.disconnected:
             socketio.emit('error', {'message': 'Player not in game or disconnected'}, to=request.sid)
             return
+        # Initialize unread_messages for this game if not present
+        if game_id not in unread_messages:
+            unread_messages[game_id] = {}
+        # Increment unread count for all players except the sender
+        players = Player.query.filter_by(game_id=game_id).all()
+        for p in players:
+            if p.username != username and not p.disconnected:
+                if p.username not in unread_messages[game_id]:
+                    unread_messages[game_id][p.username] = 0
+                unread_messages[game_id][p.username] += 1
+                logger.debug(f"Game {game_id}: Unread count for {p.username} increased to {unread_messages[game_id][p.username]}")
+        # Emit the chat message and updated unread counts
         socketio.emit('chat_message', {
             'username': username,
             'message': message
         }, room=game_id)
+        for p in players:
+            if p.username != username and not p.disconnected:
+                socketio.emit('update_unread_count', {
+                    'count': unread_messages[game_id][p.username]
+                }, to=p.sid if hasattr(p, 'sid') else None)
         logger.debug(f"Game {game_id}: Chat message from {username}: {message}")
         update_game_activity(game_id)
+
+@socketio.on('reset_unread_count')
+def handle_reset_unread_count(data):
+    game_id = data.get('game_id')
+    username = data.get('username')
+    with app.app_context():
+        if game_id in unread_messages and username in unread_messages[game_id]:
+            unread_messages[game_id][username] = 0
+            socketio.emit('update_unread_count', {'count': 0}, to=request.sid)
+            logger.debug(f"Game {game_id}: Unread count reset to 0 for {username}")
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
