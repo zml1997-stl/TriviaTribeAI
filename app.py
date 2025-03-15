@@ -229,11 +229,9 @@ def suggest_random_topic(game_id, username=None):
         logger.debug(f"Game {game_id}: Disliked topics for {username}: {disliked_topic_names}")
         logger.debug(f"Game {game_id}: Random click count for {username}: {random_click_counters[game_id][username]}")
 
-        # Base candidate topics exclude disliked and recent topics
         candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in disliked_topic_names]
         candidate_topics = [t for t in candidate_topics if t not in recent_random_topics[game_id] and t != (last_topic or "")]
 
-        # Introduce liked topics less frequently (every 5th click) and with randomness
         click_count = random_click_counters[game_id][username]
         use_liked = click_count > 0 and click_count % 5 == 0 and liked_topic_names and random.random() < 0.6  # 60% chance
 
@@ -358,6 +356,7 @@ def process_round_results(game_id):
     with app.app_context():
         game = Game.query.filter_by(id=game_id).first()
         if not game or not game.current_question:
+            logger.debug(f"Game {game_id}: No game or question to process")
             return
         
         current_question_id = game.current_question['question_id']
@@ -374,6 +373,8 @@ def process_round_results(game_id):
 
         max_score = max([p.score for p in Player.query.filter_by(game_id=game_id).all()] + [0])
         current_question = Question.query.filter_by(id=current_question_id).first()
+        logger.debug(f"Game {game_id}: Processed results for question_id {current_question_id}, max_score: {max_score}")
+        
         if max_score >= 15:
             socketio.emit('game_ended', {
                 'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
@@ -399,19 +400,21 @@ def process_round_results(game_id):
                     'topic_id': current_question.topic_id
                 }, room=game_id)
                 socketio.emit('request_feedback', {'topic_id': current_question.topic_id}, room=game_id)
+                game.current_question = None  # Clear current question after results
                 db.session.commit()
+                logger.debug(f"Game {game_id}: Emitted round_results, cleared current_question")
                 update_game_activity(game_id)
 
 def question_timer(game_id):
     with app.app_context():
         game = Game.query.filter_by(id=game_id).first()
         if not game or game.status != 'in_progress' or not game.current_question:
-            logger.debug(f"Game {game_id} not found, not in progress, or no current question; timer aborted")
+            logger.debug(f"Game {game_id}: Timer aborted - invalid state")
             if game_id in active_timers:
                 del active_timers[game_id]
             return
 
-        logger.debug(f"Game {game_id}: 30s timer expired, processing answers")
+        logger.debug(f"Game {game_id}: 30s timer expired for question_id {game.current_question['question_id']}")
         active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
         current_question_id = game.current_question['question_id']
         for player in active_players:
@@ -424,7 +427,7 @@ def question_timer(game_id):
         
         if game_id in active_timers:
             del active_timers[game_id]
-            logger.debug(f"Timer for game {game_id} completed and removed")
+            logger.debug(f"Game {game_id}: Timer completed and removed")
 
 # Background task to clean up inactive games
 def cleanup_inactive_games():
@@ -584,13 +587,11 @@ def reset_game(game_id):
                 del active_timers[game_id]
                 logger.debug(f"Cancelled timer for game {game_id} on reset")
 
-            # Reset game state without deleting Questions or Answers
             game.status = 'waiting'
             game.current_player_index = 0
             game.current_question = None
             game.question_start_time = None
             
-            # Reset player scores and connection status
             players = Player.query.filter_by(game_id=game_id).all()
             for player in players:
                 player.score = 0
@@ -737,13 +738,11 @@ def handle_select_topic(data):
             socketio.emit('error', {'message': 'Game not in progress'}, to=request.sid)
             return
         
-        # Ensure the current player is active; skip disconnected players
         active_players = Player.query.filter_by(game_id=game_id, disconnected=False).order_by(Player.id).all()
         if not active_players:
             socketio.emit('error', {'message': 'No active players'}, to=request.sid)
             return
         
-        # Update current_player_index to point to an active player
         current_player = active_players[game.current_player_index % len(active_players)]
         if current_player.disconnected:
             current_player = get_next_active_player(game_id)
@@ -758,6 +757,11 @@ def handle_select_topic(data):
         if not topic:
             topic = suggest_random_topic(game_id, username)
 
+        if game.current_question:
+            logger.debug(f"Game {game_id}: Clearing stale current_question before new topic")
+            game.current_question = None
+            db.session.commit()
+
         max_attempts = 3
         for attempt in range(max_attempts):
             try:
@@ -767,10 +771,10 @@ def handle_select_topic(data):
                 prior_questions = Question.query.filter_by(game_id=game_id).all()
                 if any(q.question_text.lower() == question_data['question'].lower() for q in prior_questions):
                     if attempt < max_attempts - 1:
-                        logger.debug(f"Game {game_id}: Duplicate question detected on attempt {attempt + 1}, retrying with topic '{topic}'")
+                        logger.debug(f"Game {game_id}: Duplicate question on attempt {attempt + 1}, retrying with '{topic}'")
                         continue
                     else:
-                        logger.warning(f"Game {game_id}: Max attempts reached, switching to random topic")
+                        logger.warning(f"Game {game_id}: Max attempts reached, using random topic")
                         topic = suggest_random_topic(game_id, username)
                         topic_obj = get_or_create_topic(topic)
                         question_data = get_trivia_question(topic, game_id)
@@ -795,22 +799,23 @@ def handle_select_topic(data):
                     'topic': topic,
                     'question_id': new_question.id
                 }, room=game_id)
+                logger.debug(f"Game {game_id}: Emitted question_ready with question_id {new_question.id}")
 
                 if game_id in active_timers:
                     active_timers[game_id].cancel()
-                    logger.debug(f"Cancelled existing timer for game {game_id}")
+                    logger.debug(f"Game {game_id}: Cancelled existing timer")
                 timer = threading.Timer(30.0, question_timer, args=(game_id,))
-                activeyclerators[game_id] = timer
+                active_timers[game_id] = timer
                 timer.start()
-                logger.debug(f"Started new 30s timer for game {game_id}")
+                logger.debug(f"Game {game_id}: Started 30s timer for question_id {new_question.id}")
 
                 update_game_activity(game_id)
                 break
             except Exception as e:
-                logger.error(f"Error generating question for topic {topic} in game {game_id} (attempt {attempt + 1}): {str(e)}")
+                logger.error(f"Game {game_id}: Error generating question for '{topic}' (attempt {attempt + 1}): {str(e)}")
                 if attempt < max_attempts - 1:
                     continue
-                socketio.emit('error', {'message': 'Failed to generate unique question after multiple attempts. Please try again.'}, room=game_id)
+                socketio.emit('error', {'message': 'Failed to generate unique question after multiple attempts.'}, room=game_id)
                 db.session.rollback()
                 return
 
@@ -829,6 +834,8 @@ def handle_submit_answer(data):
 
         current_question_id = game.current_question['question_id']
         time_elapsed = datetime.utcnow() - game.question_start_time
+        logger.debug(f"Game {game_id}: Answer submitted by {username}, time elapsed: {time_elapsed.total_seconds()}s")
+
         if time_elapsed.total_seconds() > 30:
             logger.debug(f"Game {game_id}: Time expired for {username}, setting answer to None")
             answer = None
@@ -836,7 +843,8 @@ def handle_submit_answer(data):
             option_index = ord(answer) - ord('A')
             answer = game.current_question['options'][option_index]
         else:
-            answer = None  # Invalid answer format
+            logger.debug(f"Game {game_id}: Invalid answer format from {username}: {answer}")
+            answer = None
 
         existing_answer = Answer.query.filter_by(game_id=game_id, player_id=player.id, question_id=current_question_id).first()
         if existing_answer:
@@ -845,14 +853,13 @@ def handle_submit_answer(data):
             new_answer = Answer(game_id=game_id, player_id=player.id, question_id=current_question_id, answer=answer)
             db.session.add(new_answer)
         db.session.commit()
-        logger.debug(f"Game {game_id}: Answer recorded for {username} as {answer}")
+        logger.debug(f"Game {game_id}: Recorded answer '{answer}' for {username} on question_id {current_question_id}")
         socketio.emit('player_answered', {'username': username}, room=game_id)
 
-        # Check if all active players have answered
         active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
         answers_submitted = Answer.query.filter_by(game_id=game_id, question_id=current_question_id).count()
-        if answers_submitted >= len(active_players):  # Use >= to handle edge cases
-            logger.debug(f"Game {game_id}: All active players answered, processing results")
+        if answers_submitted >= len(active_players):
+            logger.debug(f"Game {game_id}: All {len(active_players)} active players answered, processing results")
             if game_id in active_timers:
                 active_timers[game_id].cancel()
                 del active_timers[game_id]
