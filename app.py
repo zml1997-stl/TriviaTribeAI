@@ -672,8 +672,8 @@ def handle_join_game_room(data):
             socketio.emit('player_rejoined', {
                 'username': username,
                 'players': [p.username for p in players],
-                'scores': {p.username: p.score for p in players],
-                'player_emojis': {p.username: p.emoji for p in players],
+                'scores': {p.username: p.score for p in players},
+                'player_emojis': {p.username: p.emoji for p in players},
                 'status': game.status,
                 'current_player': current_player.username if current_player else None,
                 'current_question': game.current_question
@@ -712,7 +712,7 @@ def handle_start_game(data):
         socketio.emit('game_started', {
             'current_player': current_player.username if current_player else None,
             'players': [p.username for p in players],
-            'scores': {p.username: p.score for p in players],
+            'scores': {p.username: p.score for p in players},
             'player_emojis': {p.username: p.emoji for p in players}
         }, room=game_id)
         update_game_activity(game_id)
@@ -800,7 +800,7 @@ def handle_select_topic(data):
                     active_timers[game_id].cancel()
                     logger.debug(f"Cancelled existing timer for game {game_id}")
                 timer = threading.Timer(30.0, question_timer, args=(game_id,))
-                active_timers[game_id] = timer
+                activeyclerators[game_id] = timer
                 timer.start()
                 logger.debug(f"Started new 30s timer for game {game_id}")
 
