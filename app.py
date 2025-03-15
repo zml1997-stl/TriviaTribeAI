@@ -172,14 +172,14 @@ def get_player_top_topics(game_id, username, limit=3):
     if not player:
         logger.debug(f"No player found for {username} in game {game_id}")
         return "Enter a topic or click Random Topic"
-    top_topics = db.session.query(
+    top_topics = (db.session.query(
         Topic.normalized_name,
         func.count(Rating.id).label('like_count')
     ).join(Rating, Rating.topic_id == Topic.id
     ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 1
     ).group_by(Topic.normalized_name
     ).order_by(func.count(Rating.id).desc()
-    ).limit(limit).all()
+    ).limit(limit).all())
     result = ", ".join([row.normalized_name for row in top_topics]) if top_topics else "Enter a topic or click Random Topic"
     logger.debug(f"Top liked topics for {username} in game {game_id}: {result}")
     return result
@@ -193,10 +193,10 @@ def suggest_random_topic(game_id, username=None):
         if username and username not in random_click_counters[game_id]:
             random_click_counters[game_id][username] = 0
 
-        last_question = db.session.query(Question.topic_id
+        last_question = (db.session.query(Question.topic_id
             ).filter(Question.game_id == game_id
             ).order_by(Question.id.desc()
-            ).first()
+            ).first())
         last_topic = Topic.query.get(last_question.topic_id).normalized_name if last_question else None
 
         player = Player.query.filter_by(game_id=game_id, username=username).first()
@@ -212,16 +212,16 @@ def suggest_random_topic(game_id, username=None):
             logger.debug(f"Game {game_id}: Suggested random topic '{topic}' for {username or 'unknown'}")
             return topic
 
-        liked_topics = db.session.query(Topic.normalized_name
+        liked_topics = (db.session.query(Topic.normalized_name
             ).join(Rating, Rating.topic_id == Topic.id
             ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 1
             ).group_by(Topic.normalized_name
-            ).all()
-        disliked_topics = db.session.query(Topic.normalized_name
+            ).all())
+        disliked_topics = (db.session.query(Topic.normalized_name
             ).join(Rating, Rating.topic_id == Topic.id
             ).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 0
             ).group_by(Topic.normalized_name
-            ).all()
+            ).all())
 
         liked_topic_names = [t.normalized_name for t in liked_topics]
         disliked_topic_names = [t.normalized_name for t in disliked_topics]
