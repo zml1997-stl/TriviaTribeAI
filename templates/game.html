@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trivia Tribe</title>
+    <title>Trivia Tribe - {{ game_id }}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -12,6 +12,47 @@
     <audio id="correct-sound" src="{{ url_for('static', filename='correct.mp3') }}" preload="auto"></audio>
     <audio id="wrong-sound" src="{{ url_for('static', filename='wrong.mp3') }}" preload="auto"></audio>
     <audio id="round-end-sound" src="{{ url_for('static', filename='round_end.mp3') }}" preload="auto"></audio>
+    <style>
+        .chat-box { 
+            display: none; 
+            position: fixed; 
+            bottom: 60px; 
+            right: 20px; 
+            width: 300px; 
+            max-height: 400px; 
+            background: white; 
+            border: 1px solid #ccc; 
+            border-radius: 5px; 
+            box-shadow: 0 0 10px rgba(0,0,0,0.2); 
+        }
+        .chat-box.active { display: block; }
+        .chat-messages { 
+            max-height: 300px; 
+            overflow-y: auto; 
+            padding: 10px; 
+        }
+        .chat-input { 
+            width: 100%; 
+            padding: 8px; 
+            border-top: 1px solid #ccc; 
+            border-radius: 0 0 5px 5px; 
+        }
+        .chat-control-btn { 
+            position: fixed; 
+            bottom: 20px; 
+            right: 20px; 
+            z-index: 1000; 
+        }
+        .music-control-btn { 
+            position: fixed; 
+            bottom: 20px; 
+            left: 20px; 
+            z-index: 1000; 
+        }
+        .correct-answer { background-color: #d4edda; }
+        .incorrect-answer { background-color: #f8d7da; }
+        .emoji-btn { font-size: 1.5rem; }
+    </style>
 </head>
 <body>
     <header class="brand-header">
@@ -176,7 +217,7 @@
     <button id="mute-btn" class="music-control-btn">🔇</button>
     
     <!-- Chat Button and Popup -->
-    <button id="chat-btn" class="chat-control-btn">💬</button>
+    <button id="chat-btn" class="chat-control-btn">💬 <span id="unread-count" class="badge bg-danger" style="display: none;">0</span></button>
     <div id="chat-box" class="chat-box">
         <div id="chat-messages" class="chat-messages"></div>
         <input type="text" id="chat-input" class="chat-input" placeholder="Type a message..." maxlength="100">
@@ -210,12 +251,12 @@
         let timerInterval;
         let timeLeft = 30;
         let selectedAnswer = null;
-        let player_emojis = {};
+        let playerEmojis = {};
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 5;
         let currentTopicId = null;
         let currentTopic = null;
-        let currentQuestion = null;
+        let currentQuestionId = null;
 
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
@@ -233,21 +274,12 @@
         const chatBox = document.getElementById('chat-box');
         const chatMessages = document.getElementById('chat-messages');
         const chatInput = document.getElementById('chat-input');
+        const unreadCountBadge = document.getElementById('unread-count');
 
         document.addEventListener('DOMContentLoaded', function() {
-            const storedGameId = localStorage.getItem('gameId');
-            const storedUsername = localStorage.getItem('username');
-            if (storedGameId && storedUsername && storedGameId === gameId && storedUsername === username) {
-                connectToSocket();
-                setupEventListeners();
-                window.switchToHomeMusic();
-            } else {
-                localStorage.setItem('gameId', gameId);
-                localStorage.setItem('username', username);
-                connectToSocket();
-                setupEventListeners();
-                window.switchToHomeMusic();
-            }
+            connectToSocket();
+            setupEventListeners();
+            window.switchToHomeMusic();
         });
 
         function hideAllSections() {
@@ -283,8 +315,6 @@
                 connectionStatus.className = 'badge bg-danger ms-2';
                 if (reconnectAttempts < maxReconnectAttempts) {
                     console.log(`Reconnection attempt ${reconnectAttempts + 1} of ${maxReconnectAttempts}`);
-                } else {
-                    alert('Failed to connect to the game server after multiple attempts. Please refresh the page or try again later.');
                 }
             });
 
@@ -302,56 +332,15 @@
                 alert('Lost connection to the game server. Please refresh the page to try again.');
             });
 
-            socket.on('player_joined', function(data) { 
-                updatePlayerList(data.players, data.player_emojis); 
+            socket.on('player_joined', function(data) {
+                updatePlayerList(data.players, data.player_emojis);
                 hideAllSections();
                 waitingLobby.style.display = 'block';
                 leaveGameContainer.style.display = 'block';
             });
 
-            socket.on('player_left', function(data) { 
-                updatePlayerList(data.players, data.player_emojis); 
-            });
-
-            socket.on('game_started', function(data) {
-                console.log('Game started:', data);
-                clearTimeout(startGameTimeout);
-                startGameBtn.disabled = false;
-                startGameLoading.style.display = 'none';
-                startGame(data);
-            });
-
-            socket.on('question_ready', function(data) { 
-                showQuestion(data); 
-            });
-
-            socket.on('player_answered', function(data) { 
-                playerAnswered(data.username); 
-            });
-
-            socket.on('round_results', function(data) { 
-                console.log('Received round_results:', data);
-                showResults(data); 
-            });
-
-            socket.on('game_ended', function(data) { 
-                endGame(data); 
-            });
-
-            socket.on('game_reset', function(data) { 
-                resetGame(data); 
-            });
-
-            socket.on('error', function(data) {
-                console.error('Server error:', data.message);
-                alert(`Game error: ${data.message}`);
-                startGameBtn.disabled = false;
-                startGameLoading.style.display = 'none';
-                if (data.message.includes('Game not found')) {
-                    localStorage.removeItem('gameId');
-                    localStorage.removeItem('username');
-                    window.location.href = '/';
-                }
+            socket.on('player_left', function(data) {
+                updatePlayerList(data.players, data.player_emojis);
             });
 
             socket.on('player_rejoined', function(data) {
@@ -380,13 +369,52 @@
                 }
             });
 
+            socket.on('game_started', function(data) {
+                console.log('Game started:', data);
+                clearTimeout(startGameTimeout);
+                startGameBtn.disabled = false;
+                startGameLoading.style.display = 'none';
+                startGame(data);
+            });
+
+            socket.on('question_ready', function(data) {
+                showQuestion(data);
+            });
+
+            socket.on('player_answered', function(data) {
+                playerAnswered(data.username);
+            });
+
+            socket.on('round_results', function(data) {
+                console.log('Round results:', data);
+                showResults(data);
+            });
+
+            socket.on('request_feedback', function(data) {
+                currentTopicId = data.topic_id;
+                feedbackForm.style.display = 'block';
+                document.getElementById('feedback-topic-display').textContent = currentTopic;
+                document.getElementById('feedback-submitted').style.display = 'none';
+                document.querySelectorAll('.feedback-btn').forEach(btn => {
+                    btn.disabled = false;
+                    btn.classList.remove('active');
+                });
+            });
+
+            socket.on('game_ended', function(data) {
+                endGame(data);
+            });
+
+            socket.on('game_reset', function(data) {
+                resetGame(data);
+            });
+
             socket.on('turn_skipped', function(data) {
-                console.log(`${data.disconnected_player}'s turn was skipped`);
+                console.log(`${data.disconnected_player}'s turn skipped, next: ${data.next_player}`);
                 hideAllSections();
                 scoreboard.style.display = 'block';
                 if (data.next_player === username) {
                     topicSelection.style.display = 'block';
-                    document.getElementById('topic-input').value = '';
                     socket.emit('request_player_top_topics', { game_id: gameId, username: username });
                 } else {
                     showWaitingForTopic(data.next_player);
@@ -399,36 +427,29 @@
                 const pausedDiv = document.createElement('div');
                 pausedDiv.id = 'game-paused';
                 pausedDiv.className = 'text-center my-4';
-                pausedDiv.innerHTML = `<h3>Game Paused</h3><p>${data.message}</p><p>Waiting for players to reconnect...</p>`;
+                pausedDiv.innerHTML = `<h3>Game Paused</h3><p>${data.message}</p>`;
                 document.querySelector('.card-body').appendChild(pausedDiv);
                 scoreboard.style.display = 'block';
             });
 
-            socket.on('player_disconnected', function(data) {
-                console.log(`${data.username} disconnected`);
-                updatePlayerList([...document.getElementById('player-list').children].map(li => li.textContent.split(' ')[1]), player_emojis);
-            });
-
-            socket.on('request_feedback', function(data) {
-                currentTopicId = data.topic_id;
-                feedbackForm.style.display = 'block';
-                document.getElementById('feedback-submitted').style.display = 'none';
-                document.getElementById('feedback-topic-display').textContent = currentTopic;
-                document.querySelectorAll('.feedback-btn').forEach(btn => {
-                    btn.disabled = false;
-                    btn.classList.remove('active');
-                });
-                console.log(`Feedback requested for topic_id: ${currentTopicId}, topic: ${currentTopic}`);
-            });
-
             socket.on('player_top_topics', function(data) {
-                console.log(`Received player_top_topics: ${data.placeholder}`);
                 document.getElementById('topic-input').placeholder = data.placeholder;
             });
 
             socket.on('chat_message', function(data) {
-                console.log(`Chat message received: ${data.username}: ${data.message}`);
                 addChatMessage(data.username, data.message);
+            });
+
+            socket.on('update_unread_count', function(data) {
+                updateUnreadCount(data.count);
+            });
+
+            socket.on('error', function(data) {
+                console.error('Server error:', data.message);
+                alert(`Error: ${data.message}`);
+                if (data.message.includes('Game not found')) {
+                    window.location.href = '/';
+                }
             });
         }
 
@@ -443,19 +464,17 @@
                     startGameTimeout = setTimeout(() => {
                         startGameBtn.disabled = false;
                         startGameLoading.style.display = 'none';
-                        alert('Failed to start the game. The server may be busy or disconnected. Please try again.');
+                        alert('Failed to start game. Please try again.');
                     }, 10000);
                 });
             }
             document.getElementById('submit-topic-btn').addEventListener('click', function() {
                 const topic = document.getElementById('topic-input').value.trim();
-                console.log(`Submitting topic: ${topic}`);
                 socket.emit('select_topic', { game_id: gameId, username: username, topic: topic });
                 topicSelection.style.display = 'none';
                 showLoadingQuestion();
             });
             document.getElementById('random-topic-btn').addEventListener('click', function() {
-                console.log(`Requesting random topic for ${username}`);
                 socket.emit('select_topic', { game_id: gameId, username: username, topic: '' });
                 topicSelection.style.display = 'none';
                 showLoadingQuestion();
@@ -478,36 +497,27 @@
             });
             document.getElementById('submit-answer-btn').addEventListener('click', function() {
                 if (selectedAnswer) {
-                    console.log(`Submitting answer ${selectedAnswer} for ${username} in game ${gameId}`);
                     socket.emit('submit_answer', { game_id: gameId, username: username, answer: selectedAnswer });
                     window.playSubmitSound();
                     disableAnswerButtons();
                     document.getElementById('submit-answer-btn').disabled = true;
-                    const playerCount = document.getElementById('player-list').childElementCount;
-                    if (playerCount > 1) {
+                    if (document.getElementById('player-list').childElementCount > 1) {
                         waitingForAnswers.style.display = 'block';
-                    } else {
-                        waitingForAnswers.style.display = 'none';
                     }
                 }
             });
             document.getElementById('leave-game-btn').addEventListener('click', function() {
-                localStorage.removeItem('gameId');
-                localStorage.removeItem('username');
                 window.location.href = '/';
             });
-            document.getElementById('mute-btn').addEventListener('click', function() {
-                window.muteToggle();
-            });
+            document.getElementById('mute-btn').addEventListener('click', window.muteToggle);
 
             document.querySelectorAll('.feedback-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const rating = this.getAttribute('data-rating') === 'true';
-                    console.log(`Rating topic ${currentTopicId} as ${rating ? 'Like' : 'Dislike'}`);
                     socket.emit('submit_feedback', { 
-                        game_id: gameId,
+                        game_id: gameId, 
                         username: username, 
-                        topic_id: currentTopicId,
+                        topic_id: currentTopicId, 
                         rating: rating 
                     });
                     this.classList.add('active');
@@ -518,6 +528,9 @@
 
             chatBtn.addEventListener('click', function() {
                 chatBox.classList.toggle('active');
+                if (chatBox.classList.contains('active')) {
+                    socket.emit('reset_unread_count', { game_id: gameId, username: username });
+                }
             });
 
             chatInput.addEventListener('keypress', function(e) {
@@ -532,32 +545,14 @@
             });
         }
 
-        function addChatMessage(sender, message) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'chat-message';
-            messageDiv.innerHTML = `<span class="username">${sender}:</span> <span class="message">${message}</span>`;
-            chatMessages.appendChild(messageDiv);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-
-        function selectAnswer(answer) {
-            selectedAnswer = answer;
-            document.querySelectorAll('.list-group-item').forEach(button => button.classList.remove('active'));
-            document.getElementById(`option-${answer.toLowerCase()}`).classList.add('active');
-        }
-
-        function disableAnswerButtons() {
-            document.querySelectorAll('.list-group-item').forEach(button => button.disabled = true);
-        }
-
         function updatePlayerList(players, emojis) {
-            player_emojis = emojis;
+            playerEmojis = emojis;
             const playerList = document.getElementById('player-list');
             playerList.innerHTML = '';
             players.forEach(player => {
                 const li = document.createElement('li');
                 li.className = 'list-group-item d-flex justify-content-between align-items-center';
-                li.innerHTML = `<span class="player-emoji">${player_emojis[player]}</span>${player}`;
+                li.innerHTML = `<span class="player-emoji">${playerEmojis[player]}</span>${player}`;
                 if (player === username) {
                     li.className += ' list-group-item-primary';
                     li.innerHTML += ' <span class="badge bg-primary">You</span>';
@@ -574,7 +569,6 @@
             window.switchToGameMusic();
             if (data.current_player === username) {
                 topicSelection.style.display = 'block';
-                document.getElementById('topic-input').value = '';
                 socket.emit('request_player_top_topics', { game_id: gameId, username: username });
             } else {
                 showWaitingForTopic(data.current_player);
@@ -602,12 +596,11 @@
         }
 
         function showQuestion(data) {
-            console.log('Showing question:', data);
             hideAllSections();
             questionDisplay.style.display = 'block';
             scoreboard.style.display = 'block';
             currentTopic = data.topic;
-            currentQuestion = data.question;
+            currentQuestionId = data.question_id;
             document.getElementById('topic-display').textContent = data.topic;
             document.getElementById('question-text').textContent = data.question;
             document.getElementById('option-a-text').textContent = data.options[0];
@@ -636,10 +629,8 @@
                 timerProgress.style.width = `${(timeLeft / 30) * 100}%`;
                 if (timeLeft <= 0) {
                     clearInterval(timerInterval);
-                    console.log('Timer expired');
                     if (!selectedAnswer) {
                         socket.emit('submit_answer', { game_id: gameId, username: username, answer: null });
-                        console.log('Submitted null answer due to timeout');
                     }
                 }
             }, 1000);
@@ -651,26 +642,25 @@
                 answeredPlayers.add(playerName);
                 const answeredPlayersList = document.getElementById('answered-players');
                 answeredPlayersList.innerHTML = '';
-                Array.from(answeredPlayers).forEach(player => {
+                answeredPlayers.forEach(player => {
                     const li = document.createElement('li');
                     li.className = 'list-group-item';
-                    li.innerHTML = `<span class="player-emoji">${player_emojis[player]}</span>${player}`;
+                    li.innerHTML = `<span class="player-emoji">${playerEmojis[player]}</span>${player}`;
                     answeredPlayersList.appendChild(li);
                 });
                 const progress = (answeredPlayers.size / playerCount) * 100;
-                document.getElementById('answer-progress').style.width = progress + '%';
+                document.getElementById('answer-progress').style.width = `${progress}%`;
             }
         }
 
         function showResults(data) {
-            console.log('Showing results:', data);
             clearInterval(timerInterval);
             hideAllSections();
             resultsDisplay.style.display = 'block';
             scoreboard.style.display = 'block';
             window.playRoundEndSound();
             document.getElementById('results-topic-display').textContent = currentTopic;
-            document.getElementById('results-question-text').textContent = currentQuestion;
+            document.getElementById('results-question-text').textContent = document.getElementById('question-text').textContent;
             document.getElementById('correct-answer').textContent = data.correct_answer;
             document.getElementById('answer-explanation').textContent = data.explanation;
             const playerAnswersList = document.getElementById('player-answers');
@@ -686,50 +676,26 @@
                     if (player === username) window.playWrongSound();
                 }
                 if (player === username) li.className += ' fw-bold';
-                li.innerHTML = `<span class="player-emoji">${data.player_emojis[player]}</span>${player}: <span>${answer || 'No answer submitted'}</span>`;
+                li.innerHTML = `<span class="player-emoji">${data.player_emojis[player]}</span>${player}: ${answer || 'No answer'}`;
                 playerAnswersList.appendChild(li);
             });
             document.getElementById('next-player').textContent = data.next_player;
             updateScoreboard(data.scores, data.player_emojis);
             startNextRoundCountdown(data.next_player);
-            currentTopicId = data.topic_id;
-        }
-
-        function endGame(data) {
-            console.log('Game ended with scores:', data.scores);
-            clearInterval(timerInterval);
-            hideAllSections();
-            localStorage.removeItem('gameId');
-            localStorage.removeItem('username');
-            window.location.href = `/final_scoreboard/${gameId}`;
-        }
-
-        function updateScoreboard(scores, player_emojis) {
-            const scoresTableBody = document.getElementById('scores-table-body');
-            scoresTableBody.innerHTML = '';
-            const sortedScores = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-            sortedScores.forEach(([player, score]) => {
-                const tr = document.createElement('tr');
-                if (player === username) tr.className = 'table-primary';
-                tr.innerHTML = `<td><span class="player-emoji">${player_emojis[player]}</span>${player}</td><td>${score}</td>`;
-                scoresTableBody.appendChild(tr);
-            });
         }
 
         function startNextRoundCountdown(nextPlayer) {
-            console.log(`Starting next round countdown for ${nextPlayer}`);
             const progressBar = document.getElementById('next-round-progress');
             progressBar.style.width = '0%';
             progressBar.style.transition = 'width 10s linear';
             setTimeout(() => progressBar.style.width = '100%', 100);
             setTimeout(() => {
-                progressBar.style.width = '0%';
                 progressBar.style.transition = 'none';
+                progressBar.style.width = '0%';
                 hideAllSections();
                 scoreboard.style.display = 'block';
                 if (nextPlayer === username) {
                     topicSelection.style.display = 'block';
-                    document.getElementById('topic-input').value = '';
                     socket.emit('request_player_top_topics', { game_id: gameId, username: username });
                 } else {
                     showWaitingForTopic(nextPlayer);
@@ -737,18 +703,59 @@
             }, 10000);
         }
 
+        function endGame(data) {
+            clearInterval(timerInterval);
+            hideAllSections();
+            window.location.href = `/final_scoreboard/${gameId}`;
+        }
+
         function resetGame(data) {
-            console.log('Resetting game:', data);
             clearInterval(timerInterval);
             hideAllSections();
             waitingLobby.style.display = 'block';
             scoreboard.style.display = 'none';
-            leaveGameContainer.style.display = 'none';
+            leaveGameContainer.style.display = 'block';
             startGameBtn.disabled = false;
             startGameLoading.style.display = 'none';
             window.switchToHomeMusic();
             updatePlayerList(data.players, data.player_emojis);
             updateScoreboard(data.scores, data.player_emojis);
+        }
+
+        function updateScoreboard(scores, emojis) {
+            playerEmojis = emojis;
+            const scoresTableBody = document.getElementById('scores-table-body');
+            scoresTableBody.innerHTML = '';
+            const sortedScores = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+            sortedScores.forEach(([player, score]) => {
+                const tr = document.createElement('tr');
+                if (player === username) tr.className = 'table-primary';
+                tr.innerHTML = `<td><span class="player-emoji">${playerEmojis[player]}</span>${player}</td><td>${score}</td>`;
+                scoresTableBody.appendChild(tr);
+            });
+        }
+
+        function selectAnswer(answer) {
+            selectedAnswer = answer;
+            document.querySelectorAll('.list-group-item').forEach(button => button.classList.remove('active'));
+            document.getElementById(`option-${answer.toLowerCase()}`).classList.add('active');
+        }
+
+        function disableAnswerButtons() {
+            document.querySelectorAll('.list-group-item').forEach(button => button.disabled = true);
+        }
+
+        function addChatMessage(sender, message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'chat-message';
+            messageDiv.innerHTML = `<span class="username">${sender}:</span> ${message}`;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function updateUnreadCount(count) {
+            unreadCountBadge.textContent = count;
+            unreadCountBadge.style.display = count > 0 ? 'inline' : 'none';
         }
     </script>
 </body>
