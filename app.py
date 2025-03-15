@@ -21,6 +21,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # List of random trivia topics
+# List of random trivia topics
 RANDOM_TOPICS = [
     "3rd grade math", "Business", "2010s music", "80s nostalgia", "Famous inventions", 
     "World history", "Mythology", "Animal kingdom", "Space exploration", "Famous authors", 
@@ -229,11 +230,13 @@ def suggest_random_topic(game_id, username=None):
         logger.debug(f"Game {game_id}: Disliked topics for {username}: {disliked_topic_names}")
         logger.debug(f"Game {game_id}: Random click count for {username}: {random_click_counters[game_id][username]}")
 
+        # Base candidate topics exclude disliked and recent topics
         candidate_topics = [t.lower().strip() for t in RANDOM_TOPICS if t.lower().strip() not in disliked_topic_names]
         candidate_topics = [t for t in candidate_topics if t not in recent_random_topics[game_id] and t != (last_topic or "")]
 
+        # Introduce liked topics less frequently (every 5th click) and with randomness
         click_count = random_click_counters[game_id][username]
-        use_liked = click_count > 0 and click_count % 5 == 0 and liked_topic_names and random.random() < 0.6
+        use_liked = click_count > 0 and click_count % 5 == 0 and liked_topic_names and random.random() < 0.6  # 60% chance
 
         if use_liked:
             liked_candidates = [t for t in liked_topic_names if t not in recent_random_topics[game_id] and t != (last_topic or "")]
@@ -267,11 +270,11 @@ def suggest_random_topic(game_id, username=None):
 def get_trivia_question(topic, game_id):
     try:
         cached_question = Question.query.filter_by(game_id=game_id, topic_id=get_or_create_topic(topic).id).order_by(func.random()).first()
-        if cached_question and random.random() < 0.5:
+        if cached_question and random.random() < 0.5:  # 50% chance to reuse cached question
             return {
                 "question": cached_question.question_text,
                 "answer": cached_question.answer_text,
-                "options": [cached_question.answer_text, "Option B", "Option C", "Option D"],
+                "options": [cached_question.answer_text, "Option B", "Option C", "Option D"],  # Simplified distractors
                 "explanation": "Retrieved from cache"
             }
 
@@ -334,34 +337,23 @@ def get_trivia_question(topic, game_id):
         }
 
 def get_next_active_player(game_id):
-    with app.app_context():
-        game = Game.query.filter_by(id=game_id).first()
-        if not game:
-            logger.error(f"Game {game_id} not found in get_next_active_player")
-            return None
-        players = Player.query.filter_by(game_id=game_id).order_by(Player.id).all()
-        if not players:
-            logger.debug(f"No players in game {game_id}")
-            return None
-        
-        active_players = [p for p in players if not p.disconnected]
-        if not active_players:
-            logger.debug(f"No active players in game {game_id}")
-            return None
-
-        current_index = game.current_player_index
-        num_players = len(players)
-        for _ in range(num_players):
-            current_index = (current_index + 1) % num_players
-            next_player = players[current_index]
-            if not next_player.disconnected:
-                game.current_player_index = current_index
-                db.session.commit()
-                logger.debug(f"Game {game_id}: Next active player set to {next_player.username} at index {current_index}")
-                update_game_activity(game_id)
-                return next_player
-        logger.debug(f"No active players found after full loop in game {game_id}")
+    game = Game.query.filter_by(id=game_id).first()
+    if not game:
         return None
+    players = Player.query.filter_by(game_id=game_id, disconnected=False).order_by(Player.id).all()
+    if not players:
+        return None
+    current_index = game.current_player_index
+    num_players = len(players)
+    for _ in range(num_players):
+        current_index = (current_index + 1) % num_players
+        next_player = players[current_index]
+        if not next_player.disconnected:
+            game.current_player_index = current_index
+            db.session.commit()
+            update_game_activity(game_id)
+            return next_player
+    return None
 
 def question_timer(game_id):
     with app.app_context():
@@ -414,7 +406,6 @@ def question_timer(game_id):
                     'next_player': next_player.username,
                     'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                     'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
-                    'disconnected': {p.username: p.disconnected for p in Player.query.filter_by(game_id=game_id).all()},
                     'question_id': current_question.id,
                     'topic_id': current_question.topic_id
                 }, room=game_id)
@@ -438,7 +429,7 @@ def cleanup_inactive_games():
                     if game.id in active_timers:
                         active_timers[game.id].cancel()
                         del active_timers[game.id]
-                    db.session.delete(game)
+                    db.session.delete(game)  # Cascades to delete Questions, Answers, etc.
                     db.session.commit()
                     logger.info(f"Cleaned up inactive game {game.id}")
                     if game.id in recent_random_topics:
@@ -584,11 +575,13 @@ def reset_game(game_id):
                 del active_timers[game_id]
                 logger.debug(f"Cancelled timer for game {game_id} on reset")
 
+            # Reset game state without deleting Questions or Answers
             game.status = 'waiting'
             game.current_player_index = 0
             game.current_question = None
             game.question_start_time = None
             
+            # Reset player scores and connection status
             players = Player.query.filter_by(game_id=game_id).all()
             for player in players:
                 player.score = 0
@@ -598,8 +591,7 @@ def reset_game(game_id):
             socketio.emit('game_reset', {
                 'players': [p.username for p in players],
                 'scores': {p.username: p.score for p in players},
-                'player_emojis': {p.username: p.emoji for p in players},
-                'disconnected': {p.username: p.disconnected for p in players}
+                'player_emojis': {p.username: p.emoji for p in players}
             }, room=game_id)
             update_game_activity(game_id)
             logger.info(f"Game {game_id} successfully reset")
@@ -664,7 +656,6 @@ def handle_join_game_room(data):
                 'players': [p.username for p in players],
                 'scores': {p.username: p.score for p in players},
                 'player_emojis': {p.username: p.emoji for p in players},
-                'disconnected': {p.username: p.disconnected for p in players},
                 'status': game.status,
                 'current_player': current_player.username if current_player else None,
                 'current_question': game.current_question
@@ -695,19 +686,16 @@ def handle_start_game(data):
             socketio.emit('error', {'message': 'Game not found or not host'}, room=game_id)
             return
         game.status = 'in_progress'
-        game.current_player_index = 0
         db.session.commit()
-        players = Player.query.filter_by(game_id=game_id).order_by(Player.id).all()
+        players = Player.query.filter_by(game_id=game_id).all()
         current_player = players[game.current_player_index] if players else None
         if current_player and current_player.disconnected:
             current_player = get_next_active_player(game_id)
-        logger.debug(f"Game {game_id} started; current player: {current_player.username if current_player else 'None'} at index {game.current_player_index}; broadcasting to room")
         socketio.emit('game_started', {
             'current_player': current_player.username if current_player else None,
             'players': [p.username for p in players],
             'scores': {p.username: p.score for p in players},
-            'player_emojis': {p.username: p.emoji for p in players},
-            'disconnected': {p.username: p.disconnected for p in players}
+            'player_emojis': {p.username: p.emoji for p in players}
         }, room=game_id)
         update_game_activity(game_id)
 
@@ -730,21 +718,12 @@ def handle_select_topic(data):
         if not game or game.status != 'in_progress':
             socketio.emit('error', {'message': 'Game not in progress'}, to=request.sid)
             return
-        player = Player.query.filter_by(game_id=game_id, username=username).first()
+        player = Player.query.filter_by(username=username, game_id=game_id).first()
         if not player:
             logger.error(f"No player found for {username} in game {game_id}")
             socketio.emit('error', {'message': 'Player not found'}, to=request.sid)
             return
-        
-        players = Player.query.filter_by(game_id=game_id).order_by(Player.id).all()
-        if not players or game.current_player_index >= len(players):
-            logger.error(f"Game {game_id}: Invalid current_player_index {game.current_player_index} with {len(players)} players")
-            socketio.emit('error', {'message': 'Game state error'}, to=request.sid)
-            return
-        current_player = players[game.current_player_index]
-        logger.debug(f"Game {game_id}: Current player index {game.current_player_index}, username {current_player.username}, requesting user {username}")
-        
-        if current_player.username != username:
+        if Player.query.filter_by(game_id=game_id).offset(game.current_player_index).first().username != username:
             socketio.emit('error', {'message': 'Not your turn'}, to=request.sid)
             return
 
@@ -842,9 +821,8 @@ def handle_submit_answer(data):
 
         active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
         answers_submitted = Answer.query.filter_by(game_id=game_id, question_id=current_question_id).count()
-        logger.debug(f"Game {game_id}: {answers_submitted}/{len(active_players)} active players answered")
-        if answers_submitted >= len(active_players):
-            logger.debug(f"Game {game_id}: All active players answered, processing results")
+        if answers_submitted == len(active_players):
+            logger.debug(f"Game {game_id}: All players answered, processing results")
             if game_id in active_timers:
                 active_timers[game_id].cancel()
                 del active_timers[game_id]
@@ -883,7 +861,6 @@ def handle_submit_answer(data):
                         'next_player': next_player.username,
                         'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                         'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
-                        'disconnected': {p.username: p.disconnected for p in Player.query.filter_by(game_id=game_id).all()},
                         'question_id': current_question.id,
                         'topic_id': current_question.topic_id
                     }, room=game_id)
