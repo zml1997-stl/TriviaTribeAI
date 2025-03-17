@@ -711,7 +711,7 @@ def handle_join_game_room(data):
         update_game_activity(game_id)
 
 @socketio.on('start_game')
-def handle_start_game(data):
+def handle_start_game(data):  # Updated to ensure host starts
     game_id = data.get('game_id')
     username = data.get('username')
     with app.app_context():
@@ -720,13 +720,13 @@ def handle_start_game(data):
             socketio.emit('error', {'message': 'Game not found or not host'}, room=game_id)
             return
         game.status = 'in_progress'
+        game.current_player_index = 0  # Explicitly set to host (first player)
         db.session.commit()
         players = Player.query.filter_by(game_id=game_id).all()
-        current_player = players[game.current_player_index] if players else None
-        if current_player and current_player.disconnected:
-            current_player = get_next_active_player(game_id)
+        current_player = players[game.current_player_index]  # Host should always be first
+        logger.debug(f"Game {game_id}: Started by {username}, current_player={current_player.username}")
         socketio.emit('game_started', {
-            'current_player': current_player.username if current_player else None,
+            'current_player': current_player.username,
             'players': [p.username for p in players],
             'scores': {p.username: p.score for p in players},
             'player_emojis': {p.username: p.emoji for p in players}
