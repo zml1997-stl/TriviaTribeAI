@@ -285,6 +285,7 @@ def get_trivia_question(topic, game_id):
         As an expert in crafting engaging and addictive trivia questions, your task is to generate a trivia question about "{topic}" that is not only informative but also entertaining and surprising. The question should have one clear, definitive answer.  
         **Requirements:**  
         - Make the question fun, specific, and of average difficulty (challenging yet accessible for a general audience). Incorporate elements like humor, interesting facts, or unexpected twists to keep players hooked.  
+        - The onky have 30 seconds to read and answer so make it easy to read. 
         - Do not use current events or information beyond December 31, 2024.  
         - Ensure the question is factually accurate, clearly worded, and free of ambiguity or multiple valid answers.  
         - The question must not include the exact answer, any part of it, synonyms, or direct hints (e.g., if the answer is 'oxygen,' avoid questions like 'What gas, discovered on the sun before Earth, is vital for life?'). Check that the answer word or phrase is absent from the question text.  
@@ -293,7 +294,7 @@ def get_trivia_question(topic, game_id):
           {prior_questions_str}  
         - After drafting, review the question and answer to confirm compliance with these rules. If in doubt, adjust to a less common or more surprising aspect of the topic.  
         - Provide four multiple-choice options: one correct answer and three plausible distractors that reflect common misconceptions, humorous alternatives, or clever twists related to the topic. Ensure distractors are distinct from prior answers.  
-        - Include a concise explanation (1-2 sentences) that clarifies why the correct answer is right and the distractors are wrong, adding an interesting tidbit or fun fact to enhance engagement.  
+        - Include a concise explanation (1-2 sentences) that clarifies why the correct answer is right and the distractors are wrong, adding an interesting tidbit or fun fact to enhance engagement. Players have less then 10 seconds to read this. 
         - Format the response in JSON as follows:  
           ```json  
           {{  
