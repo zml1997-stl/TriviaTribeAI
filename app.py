@@ -282,20 +282,20 @@ def get_trivia_question(topic, game_id):
         prior_questions_str = "\n".join(prior_questions_list[:10]) if prior_questions_list else "None"
 
         prompt = f"""
-        As an expert in crafting engaging and addictive trivia questions, your task is to generate a trivia question about "{topic}" that is both informative and entertaining. The question should be clear, surprising, and have a single definitive answer.  
+        As an expert in crafting engaging and addictive trivia questions, your task is to generate a trivia question about "{topic}" that is both informative and entertaining. The question should be clear, surprising, and have a single, definitive answer.  
         
         ### **Requirements:**  
-        - **Engaging & Accessible:** Make the question fun, specific, and of moderate difficulty—challenging yet easy to grasp for a general audience. Use humor, surprising facts, or unexpected twists to enhance interest.  
-        - **Concise & Readable:** Players have only 30 seconds to read and answer, so keep the wording simple and direct.  
-        - **Time Constraints:** Try to keep questions in modern times unless the topic specifically is about something older. .  
-        - **Clarity & Accuracy:** Ensure the question is factually correct, unambiguous, and free of multiple valid answers.  
-        - **No Direct Hints:** Avoid including the answer (or synonyms) in the question. If the answer is “oxygen,” do not ask, *“What gas vital for life was first discovered on the sun?”*  
-        - **Originality:** The question and answer must be entirely unique within this game. Avoid repetition, synonyms, or closely related themes (e.g., if ‘Einstein’ was an answer, avoid other physicists like ‘Newton’). Cross-check against the following prior questions and answers:  
+        - **Engaging & Accessible:** Make the question fun, specific, and moderately challenging—stimulating but easy to understand for a general audience. Use humor, surprising facts, or unexpected twists to maintain interest.  
+        - **Concise & Readable:** Players have only 30 seconds to read and answer, so keep the wording simple, clear, and direct.  
+        - **Relevant Time Frame:** Focus on modern times unless the topic specifically relates to a historical event or period.  
+        - **Clarity & Accuracy:** Ensure the question is factually correct, unambiguous, and has only one valid answer.  
+        - **No Direct Hints:** The answer (or synonyms) must not appear in the question. For example, if the answer is “oxygen,” avoid asking, *“What gas vital for life was first discovered on the sun?”*  
+        - **Originality:** Each question and answer must be entirely unique within this game. Avoid reusing similar themes, synonyms, or related topics (e.g., if ‘Einstein’ was an answer, do not use other physicists like ‘Newton’). Cross-check against the following prior questions and answers:  
           {prior_questions_str}  
         - **Multiple Choice Options:** Provide four answer choices:  
           - One correct answer.  
           - Three plausible but incorrect distractors (common misconceptions, humorous twists, or logical alternatives). Ensure distractors are distinct from previous answers.  
-        - **Concise Explanation:** Include a 1-2 sentence explanation clarifying the correct answer and why the distractors are incorrect. Add an interesting fact to enhance engagement. Players should be able to read this in under 10 seconds.  
+        - **Concise Explanation:** Include a 1-2 sentence explanation that clarifies why the correct answer is right and why the distractors are incorrect. Add an interesting fact to enhance engagement. Players should be able to read this in under 10 seconds.  
         
         ### **Response Format (JSON):**  
         ```json  
