@@ -52,6 +52,56 @@
         .correct-answer { background-color: #d4edda; }
         .incorrect-answer { background-color: #f8d7da; }
         .emoji-btn { font-size: 1.5rem; }
+        /* Pictionary Styles */
+        #pictionary-display {
+            display: none;
+            text-align: center;
+        }
+        #drawing-canvas {
+            border: 2px solid #00FFFF;
+            border-radius: 4px;
+            background-color: #fff;
+            margin: 1rem auto;
+            cursor: crosshair;
+        }
+        .tool-btn {
+            background-color: #00FFFF;
+            border: none;
+            padding: 0.5rem 1rem;
+            margin: 0.2rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .tool-btn:hover {
+            background-color: #00CCCC;
+        }
+        .color-picker {
+            margin: 0.2rem;
+            padding: 0.2rem;
+        }
+        #vote-section {
+            display: none;
+            margin-top: 1rem;
+        }
+        .vote-btn {
+            background-color: #FF69B4;
+            border: none;
+            padding: 0.5rem 1rem;
+            margin: 0.2rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .vote-btn:hover {
+            background-color: #FF4A92;
+        }
+        .drawing-preview {
+            max-width: 100px;
+            max-height: 100px;
+            margin: 0.5rem;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 <body>
@@ -190,6 +240,26 @@
                             </div>
                         </div>
                         
+                        <div id="pictionary-display" style="display: none;">
+                            <h3 class="text-center mb-3">Pictionary Mini-Game</h3>
+                            <p id="pictionary-prompt" class="mb-3"></p>
+                            <canvas id="drawing-canvas" width="400" height="300"></canvas>
+                            <div class="d-flex justify-content-center mt-2">
+                                <button id="undo-btn" class="tool-btn">Undo</button>
+                                <button id="clear-btn" class="tool-btn">Clear</button>
+                                <input type="color" id="color-picker" class="color-picker" value="#000000">
+                                <input type="range" id="brush-size" min="1" max="20" value="5" class="form-range">
+                            </div>
+                            <button id="submit-drawing-btn" class="btn btn-primary mt-2">Submit Drawing</button>
+                            <div id="vote-section" class="mt-3">
+                                <h4>Vote for the Best Drawing</h4>
+                                <div id="drawings-container" class="d-flex flex-wrap justify-content-center">
+                                    <!-- Drawings will be added here dynamically -->
+                                </div>
+                                <button id="submit-vote-btn" class="btn btn-success mt-2" disabled>Submit Vote</button>
+                            </div>
+                        </div>
+                        
                         <div id="scoreboard" class="mt-3" style="display: none;">
                             <h4>Scoreboard</h4>
                             <table class="table table-striped">
@@ -257,6 +327,16 @@
         let currentTopicId = null;
         let currentTopic = null;
         let currentQuestionId = null;
+        let roundCount = 0; // Track rounds for random mini-game trigger
+        let drawingCanvas;
+        let ctx;
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+        let strokes = [];
+        let selectedColor = '#000000';
+        let brushSize = 5;
+        let selectedVote = null;
 
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
@@ -275,11 +355,27 @@
         const chatMessages = document.getElementById('chat-messages');
         const chatInput = document.getElementById('chat-input');
         const unreadCountBadge = document.getElementById('unread-count');
+        const pictionaryDisplay = document.getElementById('pictionary-display');
+        const pictionaryPrompt = document.getElementById('pictionary-prompt');
+        const drawingCanvasElement = document.getElementById('drawing-canvas');
+        const undoBtn = document.getElementById('undo-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const colorPicker = document.getElementById('color-picker');
+        const brushSizeInput = document.getElementById('brush-size');
+        const submitDrawingBtn = document.getElementById('submit-drawing-btn');
+        const voteSection = document.getElementById('vote-section');
+        const drawingsContainer = document.getElementById('drawings-container');
+        const submitVoteBtn = document.getElementById('submit-vote-btn');
 
         document.addEventListener('DOMContentLoaded', function() {
             connectToSocket();
             setupEventListeners();
             window.switchToHomeMusic();
+            // Initialize canvas
+            drawingCanvas = drawingCanvasElement.getContext('2d');
+            drawingCanvas.lineJoin = 'round';
+            drawingCanvas.lineCap = 'round';
+            setupCanvasListeners();
         });
 
         function hideAllSections() {
@@ -289,6 +385,7 @@
             resultsDisplay.style.display = 'none';
             scoreboard.style.display = 'none';
             feedbackForm.style.display = 'none';
+            pictionaryDisplay.style.display = 'none';
             document.getElementById('waiting-for-topic')?.remove();
             document.getElementById('loading-question')?.remove();
             document.getElementById('game-paused')?.remove();
@@ -343,7 +440,7 @@
                 updatePlayerList(data.players, data.player_emojis);
             });
 
-            socket.on('player_rejoined', function(data) { // Updated to ensure proper state sync
+            socket.on('player_rejoined', function(data) {
                 console.log(`${data.username} rejoined the game`);
                 updatePlayerList(data.players, data.player_emojis);
                 updateScoreboard(data.scores, data.player_emojis);
@@ -356,6 +453,8 @@
                         socket.emit('request_player_top_topics', { game_id: gameId, username: username });
                     } else if (!data.current_question) {
                         showWaitingForTopic(data.current_player);
+                    } else if (data.current_pictionary) {
+                        showPictionary(data.current_pictionary);
                     } else {
                         showQuestion({
                             question: data.current_question.question,
@@ -369,7 +468,7 @@
                 }
             });
 
-            socket.on('game_started', function(data) { // Updated with logging for debugging
+            socket.on('game_started', function(data) {
                 console.log('Game started received:', data);
                 clearTimeout(startGameTimeout);
                 startGameBtn.disabled = false;
@@ -379,6 +478,10 @@
 
             socket.on('question_ready', function(data) {
                 showQuestion(data);
+                roundCount++; // Increment round count
+                if (roundCount % randomIntFromInterval(3, 5) === 0) {
+                    socket.emit('trigger_pictionary', { game_id: gameId, username: username });
+                }
             });
 
             socket.on('player_answered', function(data) {
@@ -406,7 +509,17 @@
             });
 
             socket.on('game_reset', function(data) {
-                resetGame(data);
+                clearInterval(timerInterval);
+                hideAllSections();
+                waitingLobby.style.display = 'block';
+                scoreboard.style.display = 'none';
+                leaveGameContainer.style.display = 'block';
+                startGameBtn.disabled = false;
+                startGameLoading.style.display = 'none';
+                window.switchToHomeMusic();
+                updatePlayerList(data.players, data.player_emojis);
+                updateScoreboard(data.scores, data.player_emojis);
+                roundCount = 0; // Reset round count
             });
 
             socket.on('turn_skipped', function(data) {
@@ -449,6 +562,28 @@
                 alert(`Error: ${data.message}`);
                 if (data.message.includes('Game not found')) {
                     window.location.href = '/';
+                }
+            });
+
+            // Pictionary Events
+            socket.on('pictionary_start', function(data) {
+                showPictionary(data);
+            });
+
+            socket.on('pictionary_submissions', function(data) {
+                showVoteSection(data);
+            });
+
+            socket.on('pictionary_results', function(data) {
+                updateScoreboard(data.scores, data.player_emojis);
+                hideAllSections();
+                scoreboard.style.display = 'block';
+                const nextPlayer = data.next_player;
+                if (nextPlayer === username) {
+                    topicSelection.style.display = 'block';
+                    socket.emit('request_player_top_topics', { game_id: gameId, username: username });
+                } else {
+                    showWaitingForTopic(nextPlayer);
                 }
             });
         }
@@ -543,6 +678,18 @@
                     chatInput.value = '';
                 }
             });
+
+            // Pictionary Event Listeners
+            undoBtn.addEventListener('click', undoStroke);
+            clearBtn.addEventListener('click', clearCanvas);
+            colorPicker.addEventListener('change', function(e) {
+                selectedColor = e.target.value;
+            });
+            brushSizeInput.addEventListener('input', function(e) {
+                brushSize = e.target.value;
+            });
+            submitDrawingBtn.addEventListener('click', submitDrawing);
+            submitVoteBtn.addEventListener('click', submitVote);
         }
 
         function updatePlayerList(players, emojis) {
@@ -573,6 +720,7 @@
             } else {
                 showWaitingForTopic(data.current_player);
             }
+            roundCount = 0; // Reset round count on game start
         }
 
         function showWaitingForTopic(player) {
@@ -756,6 +904,129 @@
         function updateUnreadCount(count) {
             unreadCountBadge.textContent = count;
             unreadCountBadge.style.display = count > 0 ? 'inline' : 'none';
+        }
+
+        // Canvas Setup
+        function setupCanvasListeners() {
+            drawingCanvasElement.addEventListener('mousedown', startDrawing);
+            drawingCanvasElement.addEventListener('mousemove', draw);
+            drawingCanvasElement.addEventListener('mouseup', stopDrawing);
+            drawingCanvasElement.addEventListener('mouseout', stopDrawing);
+        }
+
+        function startDrawing(e) {
+            isDrawing = true;
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            ctx.beginPath();
+            ctx.strokeStyle = selectedColor;
+            ctx.lineWidth = brushSize;
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+            strokes.push({ x: lastX, y: lastY, x2: e.offsetX, y2: e.offsetY, color: selectedColor, size: brushSize });
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+        }
+
+        function undoStroke() {
+            if (strokes.length > 0) {
+                strokes.pop();
+                redrawCanvas();
+            }
+        }
+
+        function clearCanvas() {
+            strokes = [];
+            redrawCanvas();
+        }
+
+        function redrawCanvas() {
+            ctx.clearRect(0, 0, drawingCanvasElement.width, drawingCanvasElement.height);
+            strokes.forEach(stroke => {
+                ctx.beginPath();
+                ctx.strokeStyle = stroke.color;
+                ctx.lineWidth = stroke.size;
+                ctx.moveTo(stroke.x, stroke.y);
+                ctx.lineTo(stroke.x2, stroke.y2);
+                ctx.stroke();
+            });
+        }
+
+        function submitDrawing() {
+            const drawingData = drawingCanvasElement.toDataURL();
+            socket.emit('submit_pictionary_drawing', { game_id: gameId, username: username, drawing: drawingData });
+            submitDrawingBtn.disabled = true;
+            window.playSubmitSound();
+        }
+
+        function showPictionary(data) {
+            hideAllSections();
+            pictionaryDisplay.style.display = 'block';
+            scoreboard.style.display = 'block';
+            pictionaryPrompt.textContent = data.prompt;
+            voteSection.style.display = 'none';
+            submitDrawingBtn.disabled = false;
+            clearCanvas();
+            startPictionaryTimer(30);
+        }
+
+        function startPictionaryTimer(timeLimit) {
+            timeLeft = timeLimit;
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    if (!submitDrawingBtn.disabled) {
+                        submitDrawing();
+                    }
+                }
+            }, 1000);
+        }
+
+        function showVoteSection(data) {
+            voteSection.style.display = 'block';
+            drawingsContainer.innerHTML = '';
+            data.drawings.forEach((drawing, index) => {
+                const img = document.createElement('img');
+                img.src = drawing;
+                img.className = 'drawing-preview';
+                const btn = document.createElement('button');
+                btn.className = 'vote-btn';
+                btn.textContent = `Vote for ${data.players[index]}`;
+                btn.addEventListener('click', () => {
+                    selectedVote = index;
+                    document.querySelectorAll('.vote-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    submitVoteBtn.disabled = false;
+                });
+                const div = document.createElement('div');
+                div.appendChild(img);
+                div.appendChild(btn);
+                drawingsContainer.appendChild(div);
+            });
+            if (data.players.length === 1) {
+                selectedVote = 0;
+                document.querySelector('.vote-btn').classList.add('active');
+                submitVoteBtn.disabled = false;
+            }
+        }
+
+        function submitVote() {
+            socket.emit('submit_pictionary_vote', { game_id: gameId, username: username, vote: selectedVote });
+            submitVoteBtn.disabled = true;
+        }
+
+        // Utility function for random interval
+        function randomIntFromInterval(min, max) {
+            return Math.floor(Math.random() * (max - min + 1) + min);
         }
     </script>
 </body>
