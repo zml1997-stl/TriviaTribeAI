@@ -267,26 +267,8 @@ def suggest_random_topic(game_id, username=None):
 @timeout_decorator.timeout(10, timeout_exception=TimeoutError)
 def get_trivia_question(topic, game_id):
     try:
-        # Get prior questions and the most recent question for this topic
+        # Get prior questions to ensure uniqueness
         prior_questions = Question.query.filter_by(game_id=game_id).all()
-        last_question = Question.query.filter_by(game_id=game_id, topic_id=get_or_create_topic(topic).id).order_by(Question.id.desc()).first()
-
-        # Try cached question first, excluding the most recent one
-        cached_questions = Question.query.filter_by(game_id=game_id, topic_id=get_or_create_topic(topic).id).order_by(func.random()).all()
-        if cached_questions and random.random() < 0.75:
-            for cached_question in cached_questions:
-                if not last_question or cached_question.id != last_question.id:
-                    options = [cached_question.answer_text, f"{topic} Option B", f"{topic} Option C", f"{topic} Option D"]
-                    random.shuffle(options)
-                    logger.debug(f"Game {game_id}: Using cached question '{cached_question.question_text}' for topic '{topic}'")
-                    return {
-                        "question": cached_question.question_text,
-                        "answer": cached_question.answer_text,
-                        "options": options,
-                        "explanation": "Retrieved from cache",
-                        "is_fallback": False
-                    }
-
         model = genai.GenerativeModel('gemini-2.0-flash')
         prior_questions_list = [f"- Question: {q.question_text} (Answer: {q.answer_text})" for q in prior_questions]
         prior_questions_str = "\n".join(prior_questions_list[:10]) if prior_questions_list else "None"
@@ -346,7 +328,7 @@ def get_trivia_question(topic, game_id):
                         raise ValueError("Options must be a list of 4 unique items")
                     continue
 
-                # Check for similarity
+                # Check for similarity with prior questions
                 is_similar = False
                 for q in prior_questions:
                     if (q.question_text.lower() == question_data['question'].lower() or 
@@ -372,40 +354,9 @@ def get_trivia_question(topic, game_id):
                 if attempt == 7:
                     raise  # On last attempt, propagate the exception
 
-    except (json.JSONDecodeError, ValueError) as e:
-        logger.error(f"Exhausted 8 attempts for topic {topic}: {str(e)}")
-        # Fallback with a generic question, avoiding recent cache
-        options = ["Unable to generate", "Option B", "Option C", "Option D"]
-        random.shuffle(options)
-        return {
-            "question": f"What is a fact about {topic}?",
-            "answer": "Unable to generate",
-            "options": options,
-            "explanation": f"Error: {str(e)} after 8 attempts",
-            "is_fallback": True
-        }
-    except TimeoutError:
-        logger.error(f"Timeout generating question for topic {topic}")
-        options = ["Fallback answer", "Option B", "Option C", "Option D"]
-        random.shuffle(options)
-        return {
-            "question": f"What is a basic fact about {topic}?",
-            "answer": "Fallback answer",
-            "options": options,
-            "explanation": "Question generation timed out.",
-            "is_fallback": True
-        }
     except Exception as e:
-        logger.error(f"Unexpected error for topic {topic}: {str(e)}")
-        options = ["Unable to generate", "Option B", "Option C", "Option D"]
-        random.shuffle(options)
-        return {
-            "question": f"What is a fact about {topic}?",
-            "answer": "Unable to generate",
-            "options": options,
-            "explanation": "Unexpected error with AI service.",
-            "is_fallback": True
-        }
+        logger.error(f"Failed to generate unique question for topic {topic} after 8 attempts: {str(e)}")
+        raise ValueError(f"Could not generate a unique question for '{topic}'. Please try a different topic.")
 
 def get_next_active_player(game_id):
     game = Game.query.filter_by(id=game_id).first()
@@ -885,9 +836,13 @@ def handle_select_topic(data):
             logger.debug(f"Game {game_id}: Started 30s timer for question_id {new_question.id}")
 
             update_game_activity(game_id)
-        except Exception as e:
+        except ValueError as e:
             logger.error(f"Game {game_id}: Failed to generate question for '{topic}': {str(e)}")
-            socketio.emit('error', {'message': 'Failed to generate question.'}, room=game_id)
+            socketio.emit('error', {'message': str(e)}, to=request.sid)
+            db.session.rollback()
+        except Exception as e:
+            logger.error(f"Game {game_id}: Unexpected error generating question for '{topic}': {str(e)}")
+            socketio.emit('error', {'message': f"Unexpected error generating question for '{topic}'. Please try again."}, to=request.sid)
             db.session.rollback()
 
 @socketio.on('submit_answer')
