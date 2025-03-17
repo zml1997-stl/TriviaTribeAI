@@ -282,27 +282,29 @@ def get_trivia_question(topic, game_id):
         prior_questions_str = "\n".join(prior_questions_list[:10]) if prior_questions_list else "None"
 
         prompt = f"""
-        As an expert in crafting engaging and addictive trivia questions, your task is to generate a trivia question about "{topic}" that is not only informative but also entertaining and surprising. The question should have one clear, definitive answer.  
-        **Requirements:**  
-        - Make the question fun, specific, and of average difficulty (challenging yet accessible for a general audience). Incorporate elements like humor, interesting facts, or unexpected twists to keep players hooked.  
-        - The onky have 30 seconds to read and answer so make it easy to read. 
-        - Do not use current events or information beyond December 31, 2024.  
-        - Ensure the question is factually accurate, clearly worded, and free of ambiguity or multiple valid answers.  
-        - The question must not include the exact answer, any part of it, synonyms, or direct hints (e.g., if the answer is 'oxygen,' avoid questions like 'What gas, discovered on the sun before Earth, is vital for life?'). Check that the answer word or phrase is absent from the question text.  
-        - Both the question and its answer must be original and entirely distinct from previous questions and answers in this game. Avoid repetition, synonyms, variations, or thematic overlap (e.g., if 'Einstein' was an answer, avoid 'Newton' or other physicists). Cross-check the answer against the list of prior answers and, if similar, generate a new question and answer focusing on a different aspect of the topic.  
-        - Refer to the following list of prior questions and answers to ensure distinctiveness:  
+        As an expert in crafting engaging and addictive trivia questions, your task is to generate a trivia question about "{topic}" that is both informative and entertaining. The question should be clear, surprising, and have a single definitive answer.  
+        
+        ### **Requirements:**  
+        - **Engaging & Accessible:** Make the question fun, specific, and of moderate difficulty—challenging yet easy to grasp for a general audience. Use humor, surprising facts, or unexpected twists to enhance interest.  
+        - **Concise & Readable:** Players have only 30 seconds to read and answer, so keep the wording simple and direct.  
+        - **Time Constraints:** Try to keep questions in modern times unless the topic specifically is about something older. .  
+        - **Clarity & Accuracy:** Ensure the question is factually correct, unambiguous, and free of multiple valid answers.  
+        - **No Direct Hints:** Avoid including the answer (or synonyms) in the question. If the answer is “oxygen,” do not ask, *“What gas vital for life was first discovered on the sun?”*  
+        - **Originality:** The question and answer must be entirely unique within this game. Avoid repetition, synonyms, or closely related themes (e.g., if ‘Einstein’ was an answer, avoid other physicists like ‘Newton’). Cross-check against the following prior questions and answers:  
           {prior_questions_str}  
-        - After drafting, review the question and answer to confirm compliance with these rules. If in doubt, adjust to a less common or more surprising aspect of the topic.  
-        - Provide four multiple-choice options: one correct answer and three plausible distractors that reflect common misconceptions, humorous alternatives, or clever twists related to the topic. Ensure distractors are distinct from prior answers.  
-        - Include a concise explanation (1-2 sentences) that clarifies why the correct answer is right and the distractors are wrong, adding an interesting tidbit or fun fact to enhance engagement. Players have less then 10 seconds to read this. 
-        - Format the response in JSON as follows:  
-          ```json  
-          {{  
-            "question": "string",  
-            "answer": "string",  
-            "options": ["string", "string", "string", "string"],  
-            "explanation": "string"  
-          }}
+        - **Multiple Choice Options:** Provide four answer choices:  
+          - One correct answer.  
+          - Three plausible but incorrect distractors (common misconceptions, humorous twists, or logical alternatives). Ensure distractors are distinct from previous answers.  
+        - **Concise Explanation:** Include a 1-2 sentence explanation clarifying the correct answer and why the distractors are incorrect. Add an interesting fact to enhance engagement. Players should be able to read this in under 10 seconds.  
+        
+        ### **Response Format (JSON):**  
+        ```json  
+        {{  
+          "question": "string",  
+          "answer": "string",  
+          "options": ["string", "string", "string", "string"],  
+          "explanation": "string"  
+        }}
         """
         response = model.generate_content(prompt)
         cleaned_text = response.text.strip().replace('```json', '').replace('```', '')
