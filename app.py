@@ -264,16 +264,19 @@ def suggest_random_topic(game_id, username=None):
             recent_random_topics[game_id].pop(0)
         return topic
 
-@timeout_decorator.timeout(10, timeout_exception=TimeoutError)  # Increased from 5 to 10 seconds
+@timeout_decorator.timeout(10, timeout_exception=TimeoutError)
 def get_trivia_question(topic, game_id):
     try:
         cached_question = Question.query.filter_by(game_id=game_id, topic_id=get_or_create_topic(topic).id).order_by(func.random()).first()
-        if cached_question and random.random() < 0.75:  # Increased cache usage to 75%
+        if cached_question and random.random() < 0.75:
+            options = [cached_question.answer_text, f"{topic} Option B", f"{topic} Option C", f"{topic} Option D"]
+            random.shuffle(options)  # Randomize options
             return {
                 "question": cached_question.question_text,
                 "answer": cached_question.answer_text,
-                "options": [cached_question.answer_text, "Option B", "Option C", "Option D"],
-                "explanation": "Retrieved from cache"
+                "options": options,
+                "explanation": "Retrieved from cache",
+                "is_fallback": False
             }
 
         model = genai.GenerativeModel('gemini-2.0-flash')
@@ -335,35 +338,47 @@ def get_trivia_question(topic, game_id):
                 logger.warning(f"Similarity detected for topic {topic}: {question_data['question']}")
                 raise ValueError("Generated question or answer is too similar to a prior one")
 
+        # Randomize options
+        random.shuffle(question_data["options"])
+        question_data["is_fallback"] = False
         return question_data
 
     except (json.JSONDecodeError, ValueError) as e:
         logger.error(f"Error for topic {topic}: {str(e)}")
-        if "similar" in str(e).lower():  # Retry with random topic on similarity
+        if "similar" in str(e).lower():
             new_topic = suggest_random_topic(game_id)
             logger.info(f"Retrying with random topic: {new_topic}")
             return get_trivia_question(new_topic, game_id)
+        options = ["Unable to generate", "Option B", "Option C", "Option D"]
+        random.shuffle(options)
         return {
             "question": f"What is a fact about {topic}?",
             "answer": "Unable to generate",
-            "options": ["Unable to generate", "Option B", "Option C", "Option D"],
-            "explanation": f"Error: {str(e)}"
+            "options": options,
+            "explanation": f"Error: {str(e)}",
+            "is_fallback": True
         }
     except TimeoutError:
         logger.error(f"Timeout generating question for topic {topic}")
+        options = ["Fallback answer", "Option B", "Option C", "Option D"]
+        random.shuffle(options)
         return {
             "question": f"What is a basic fact about {topic}?",
             "answer": "Fallback answer",
-            "options": ["Fallback answer", "Option B", "Option C", "Option D"],
-            "explanation": "Question generation timed out."
+            "options": options,
+            "explanation": "Question generation timed out.",
+            "is_fallback": True
         }
     except Exception as e:
         logger.error(f"Unexpected error for topic {topic}: {str(e)}")
+        options = ["Unable to generate", "Option B", "Option C", "Option D"]
+        random.shuffle(options)
         return {
             "question": f"What is a fact about {topic}?",
             "answer": "Unable to generate",
-            "options": ["Unable to generate", "Option B", "Option C", "Option D"],
-            "explanation": "Unexpected error with AI service."
+            "options": options,
+            "explanation": "Unexpected error with AI service.",
+            "is_fallback": True
         }
 
 def get_next_active_player(game_id):
@@ -395,13 +410,17 @@ def process_round_results(game_id):
         current_question_id = game.current_question['question_id']
         active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
         correct_answer = game.current_question['answer']
-        correct_players = [
-            p for p in active_players
-            if Answer.query.filter_by(game_id=game_id, player_id=p.id, question_id=current_question_id).first() and
-               Answer.query.filter_by(game_id=game_id, player_id=p.id, question_id=current_question_id).first().answer == correct_answer
-        ]
-        for p in correct_players:
-            p.score += 1
+        is_fallback = game.current_question.get('is_fallback', False)
+        
+        correct_players = []
+        if not is_fallback:  # Only award points if not a fallback question
+            correct_players = [
+                p for p in active_players
+                if Answer.query.filter_by(game_id=game_id, player_id=p.id, question_id=current_question_id).first() and
+                   Answer.query.filter_by(game_id=game_id, player_id=p.id, question_id=current_question_id).first().answer == correct_answer
+            ]
+            for p in correct_players:
+                p.score += 1
         db.session.commit()
 
         max_score = max([p.score for p in Player.query.filter_by(game_id=game_id).all()] + [0])
@@ -430,7 +449,8 @@ def process_round_results(game_id):
                     'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()},
                     'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()},
                     'question_id': current_question.id,
-                    'topic_id': current_question.topic_id
+                    'topic_id': current_question.topic_id,
+                    'is_fallback': is_fallback
                 }, room=game_id)
                 socketio.emit('request_feedback', {'topic_id': current_question.topic_id}, room=game_id)
                 game.current_question = None  # Clear current question after results
