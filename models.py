@@ -13,6 +13,8 @@ class Game(db.Model):
     current_question = db.Column(db.JSON)
     question_start_time = db.Column(db.DateTime)
     last_activity = db.Column(db.DateTime, default=db.func.now())
+    round_count = db.Column(db.Integer, default=0)  # Added for round tracking
+    current_pictionary = db.Column(db.JSON)  # Added to store Pictionary state
 
     players = db.relationship('Player', backref='game', lazy=True, cascade='all, delete-orphan')
     questions = db.relationship('Question', backref='game', lazy=True, cascade='all, delete-orphan')
