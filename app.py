@@ -264,15 +264,15 @@ def suggest_random_topic(game_id, username=None):
             recent_random_topics[game_id].pop(0)
         return topic
 
-@timeout_decorator.timeout(5, timeout_exception=TimeoutError)
+@timeout_decorator.timeout(10, timeout_exception=TimeoutError)  # Increased from 5 to 10 seconds
 def get_trivia_question(topic, game_id):
     try:
         cached_question = Question.query.filter_by(game_id=game_id, topic_id=get_or_create_topic(topic).id).order_by(func.random()).first()
-        if cached_question and random.random() < 0.5:  # 50% chance to reuse cached question
+        if cached_question and random.random() < 0.75:  # Increased cache usage to 75%
             return {
                 "question": cached_question.question_text,
                 "answer": cached_question.answer_text,
-                "options": [cached_question.answer_text, "Option B", "Option C", "Option D"],  # Simplified distractors
+                "options": [cached_question.answer_text, "Option B", "Option C", "Option D"],
                 "explanation": "Retrieved from cache"
             }
 
@@ -282,21 +282,19 @@ def get_trivia_question(topic, game_id):
         prior_questions_str = "\n".join(prior_questions_list[:10]) if prior_questions_list else "None"
 
         prompt = f"""
-        As an expert in crafting engaging and addictive trivia questions, your task is to generate a trivia question about "{topic}" that is both informative and entertaining. The question should be clear, surprising, and have a single, definitive answer.  
-        
+        As an expert in crafting engaging and addictive trivia questions, your task is to generate a trivia question about "{topic}" that is both informative and entertaining. The question must be clear, surprising, and have a single, definitive answer.  
+
         ### **Requirements:**  
         - **Engaging & Accessible:** Make the question fun, specific, and moderately challenging—stimulating but easy to understand for a general audience. Use humor, surprising facts, or unexpected twists to maintain interest.  
         - **Concise & Readable:** Players have only 30 seconds to read and answer, so keep the wording simple, clear, and direct.  
         - **Relevant Time Frame:** Focus on modern times unless the topic specifically relates to a historical event or period.  
         - **Clarity & Accuracy:** Ensure the question is factually correct, unambiguous, and has only one valid answer.  
-        - **No Direct Hints:** The answer (or synonyms) must not appear in the question. For example, if the answer is “oxygen,” avoid asking, *“What gas vital for life was first discovered on the sun?”*  
-        - **Originality:** Each question and answer must be entirely unique within this game. Avoid reusing similar themes, synonyms, or related topics (e.g., if ‘Einstein’ was an answer, do not use other physicists like ‘Newton’). Cross-check against the following prior questions and answers:  
+        - **No Direct Hints:** The answer (or synonyms) must not appear in the question.  
+        - **Originality (Critical):** The question and answer MUST be COMPLETELY UNIQUE compared to prior questions in this game. Avoid ANY overlap in themes, keywords, or answers (e.g., if 'Einstein' was an answer, do not use 'relativity' or other physicists). Prior questions and answers:  
           {prior_questions_str}  
-        - **Multiple Choice Options:** Provide four answer choices:  
-          - One correct answer.  
-          - Three plausible but incorrect distractors (common misconceptions, humorous twists, or logical alternatives). Ensure distractors are distinct from previous answers.  
-        - **Concise Explanation:** Include a 1-2 sentence explanation that clarifies why the correct answer is right and why the distractors are incorrect. Add an interesting fact to enhance engagement. Players should be able to read this in under 10 seconds.  
-        
+        - **Multiple Choice Options:** Provide four answer choices: one correct, three plausible but incorrect distractors. Ensure distractors are distinct from previous answers.  
+        - **Concise Explanation:** Include a 1-2 sentence explanation with an interesting fact.
+
         ### **Response Format (JSON):**  
         ```json  
         {{  
@@ -307,41 +305,65 @@ def get_trivia_question(topic, game_id):
         }}
         """
         response = model.generate_content(prompt)
-        cleaned_text = response.text.strip().replace('```json', '').replace('```', '')
-        question_data = json.loads(cleaned_text)
+        cleaned_text = response.text.strip().replace('```json', '').replace('```', '').strip()
 
-        # Double-check for similarity in questions or answers
+        # Robust JSON parsing
+        try:
+            question_data = json.loads(cleaned_text)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing failed for topic {topic}: {str(e)}. Raw response: {cleaned_text}")
+            raise
+
+        # Validate required fields
+        required_fields = ["question", "answer", "options", "explanation"]
+        missing_fields = [field for field in required_fields if field not in question_data or not question_data[field]]
+        if missing_fields:
+            logger.error(f"Missing fields {missing_fields} in response for topic {topic}: {question_data}")
+            raise ValueError(f"Invalid response format: missing {missing_fields}")
+
+        # Ensure options is a list of 4 distinct items
+        if not isinstance(question_data["options"], list) or len(set(question_data["options"])) != 4:
+            logger.error(f"Invalid options format for topic {topic}: {question_data['options']}")
+            raise ValueError("Options must be a list of 4 unique items")
+
+        # Check for similarity
         for q in prior_questions:
             if (q.question_text.lower() == question_data['question'].lower() or 
                 q.answer_text.lower() == question_data['answer'].lower() or
-                (q.answer_text.lower() in question_data['answer'].lower() or 
-                 question_data['answer'].lower() in q.answer_text.lower())):
+                q.answer_text.lower() in question_data['answer'].lower() or 
+                question_data['answer'].lower() in q.answer_text.lower()):
+                logger.warning(f"Similarity detected for topic {topic}: {question_data['question']}")
                 raise ValueError("Generated question or answer is too similar to a prior one")
 
         return question_data
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parsing error for topic {topic}: {str(e)}")
+
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error(f"Error for topic {topic}: {str(e)}")
+        if "similar" in str(e).lower():  # Retry with random topic on similarity
+            new_topic = suggest_random_topic(game_id)
+            logger.info(f"Retrying with random topic: {new_topic}")
+            return get_trivia_question(new_topic, game_id)
         return {
             "question": f"What is a fact about {topic}?",
             "answer": "Unable to generate",
-            "options": ["A", "B", "C", "D"],
-            "explanation": "Invalid response format from AI service."
+            "options": ["Unable to generate", "Option B", "Option C", "Option D"],
+            "explanation": f"Error: {str(e)}"
         }
     except TimeoutError:
         logger.error(f"Timeout generating question for topic {topic}")
         return {
             "question": f"What is a basic fact about {topic}?",
             "answer": "Fallback answer",
-            "options": ["Fallback answer", "B", "C", "D"],
-            "explanation": "Question generation timed out; this is a fallback."
+            "options": ["Fallback answer", "Option B", "Option C", "Option D"],
+            "explanation": "Question generation timed out."
         }
     except Exception as e:
-        logger.error(f"Error generating question for topic {topic}: {str(e)}")
+        logger.error(f"Unexpected error for topic {topic}: {str(e)}")
         return {
             "question": f"What is a fact about {topic}?",
             "answer": "Unable to generate",
-            "options": ["A", "B", "C", "D"],
-            "explanation": "Error with AI service or similarity detected."
+            "options": ["Unable to generate", "Option B", "Option C", "Option D"],
+            "explanation": "Unexpected error with AI service."
         }
 
 def get_next_active_player(game_id):
@@ -716,7 +738,7 @@ def handle_join_game_room(data):
         update_game_activity(game_id)
 
 @socketio.on('start_game')
-def handle_start_game(data):  # Updated to ensure host starts
+def handle_start_game(data):
     game_id = data.get('game_id')
     username = data.get('username')
     with app.app_context():
@@ -782,62 +804,45 @@ def handle_select_topic(data):
             game.current_question = None
             db.session.commit()
 
-        max_attempts = 3
-        for attempt in range(max_attempts):
-            try:
-                topic_obj = get_or_create_topic(topic)
-                question_data = get_trivia_question(topic, game_id)
-                
-                prior_questions = Question.query.filter_by(game_id=game_id).all()
-                if any(q.question_text.lower() == question_data['question'].lower() for q in prior_questions):
-                    if attempt < max_attempts - 1:
-                        logger.debug(f"Game {game_id}: Duplicate question on attempt {attempt + 1}, retrying with '{topic}'")
-                        continue
-                    else:
-                        logger.warning(f"Game {game_id}: Max attempts reached, using random topic")
-                        topic = suggest_random_topic(game_id, username)
-                        topic_obj = get_or_create_topic(topic)
-                        question_data = get_trivia_question(topic, game_id)
+        try:
+            topic_obj = get_or_create_topic(topic)
+            question_data = get_trivia_question(topic, game_id)
+            
+            new_question = Question(
+                game_id=game_id,
+                topic_id=topic_obj.id,
+                question_text=question_data['question'],
+                answer_text=question_data['answer']
+            )
+            db.session.add(new_question)
+            db.session.flush()
 
-                new_question = Question(
-                    game_id=game_id,
-                    topic_id=topic_obj.id,
-                    question_text=question_data['question'],
-                    answer_text=question_data['answer']
-                )
-                db.session.add(new_question)
-                db.session.flush()
+            game.current_question = question_data
+            game.current_question['question_id'] = new_question.id
+            game.question_start_time = datetime.utcnow()
+            db.session.commit()
 
-                game.current_question = question_data
-                game.current_question['question_id'] = new_question.id
-                game.question_start_time = datetime.utcnow()
-                db.session.commit()
+            socketio.emit('question_ready', {
+                'question': question_data['question'],
+                'options': question_data['options'],
+                'topic': topic,
+                'question_id': new_question.id
+            }, room=game_id)
+            logger.debug(f"Game {game_id}: Emitted question_ready with question_id {new_question.id}")
 
-                socketio.emit('question_ready', {
-                    'question': question_data['question'],
-                    'options': question_data['options'],
-                    'topic': topic,
-                    'question_id': new_question.id
-                }, room=game_id)
-                logger.debug(f"Game {game_id}: Emitted question_ready with question_id {new_question.id}")
+            if game_id in active_timers:
+                active_timers[game_id].cancel()
+                logger.debug(f"Game {game_id}: Cancelled existing timer")
+            timer = threading.Timer(30.0, question_timer, args=(game_id,))
+            active_timers[game_id] = timer
+            timer.start()
+            logger.debug(f"Game {game_id}: Started 30s timer for question_id {new_question.id}")
 
-                if game_id in active_timers:
-                    active_timers[game_id].cancel()
-                    logger.debug(f"Game {game_id}: Cancelled existing timer")
-                timer = threading.Timer(30.0, question_timer, args=(game_id,))
-                active_timers[game_id] = timer
-                timer.start()
-                logger.debug(f"Game {game_id}: Started 30s timer for question_id {new_question.id}")
-
-                update_game_activity(game_id)
-                break
-            except Exception as e:
-                logger.error(f"Game {game_id}: Error generating question for '{topic}' (attempt {attempt + 1}): {str(e)}")
-                if attempt < max_attempts - 1:
-                    continue
-                socketio.emit('error', {'message': 'Failed to generate unique question after multiple attempts.'}, room=game_id)
-                db.session.rollback()
-                return
+            update_game_activity(game_id)
+        except Exception as e:
+            logger.error(f"Game {game_id}: Failed to generate question for '{topic}': {str(e)}")
+            socketio.emit('error', {'message': 'Failed to generate question.'}, room=game_id)
+            db.session.rollback()
 
 @socketio.on('submit_answer')
 def handle_submit_answer(data):
