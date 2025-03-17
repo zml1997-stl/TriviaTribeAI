@@ -267,20 +267,27 @@ def suggest_random_topic(game_id, username=None):
 @timeout_decorator.timeout(10, timeout_exception=TimeoutError)
 def get_trivia_question(topic, game_id):
     try:
-        cached_question = Question.query.filter_by(game_id=game_id, topic_id=get_or_create_topic(topic).id).order_by(func.random()).first()
-        if cached_question and random.random() < 0.75:
-            options = [cached_question.answer_text, f"{topic} Option B", f"{topic} Option C", f"{topic} Option D"]
-            random.shuffle(options)  # Randomize options
-            return {
-                "question": cached_question.question_text,
-                "answer": cached_question.answer_text,
-                "options": options,
-                "explanation": "Retrieved from cache",
-                "is_fallback": False
-            }
+        # Get prior questions and the most recent question for this topic
+        prior_questions = Question.query.filter_by(game_id=game_id).all()
+        last_question = Question.query.filter_by(game_id=game_id, topic_id=get_or_create_topic(topic).id).order_by(Question.id.desc()).first()
+
+        # Try cached question first, excluding the most recent one
+        cached_questions = Question.query.filter_by(game_id=game_id, topic_id=get_or_create_topic(topic).id).order_by(func.random()).all()
+        if cached_questions and random.random() < 0.75:
+            for cached_question in cached_questions:
+                if not last_question or cached_question.id != last_question.id:
+                    options = [cached_question.answer_text, f"{topic} Option B", f"{topic} Option C", f"{topic} Option D"]
+                    random.shuffle(options)
+                    logger.debug(f"Game {game_id}: Using cached question '{cached_question.question_text}' for topic '{topic}'")
+                    return {
+                        "question": cached_question.question_text,
+                        "answer": cached_question.answer_text,
+                        "options": options,
+                        "explanation": "Retrieved from cache",
+                        "is_fallback": False
+                    }
 
         model = genai.GenerativeModel('gemini-2.0-flash')
-        prior_questions = Question.query.filter_by(game_id=game_id).all()
         prior_questions_list = [f"- Question: {q.question_text} (Answer: {q.answer_text})" for q in prior_questions]
         prior_questions_str = "\n".join(prior_questions_list[:10]) if prior_questions_list else "None"
 
@@ -307,55 +314,74 @@ def get_trivia_question(topic, game_id):
           "explanation": "string"  
         }}
         """
-        response = model.generate_content(prompt)
-        cleaned_text = response.text.strip().replace('```json', '').replace('```', '').strip()
 
-        # Robust JSON parsing
-        try:
-            question_data = json.loads(cleaned_text)
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing failed for topic {topic}: {str(e)}. Raw response: {cleaned_text}")
-            raise
+        # Retry up to 8 times for a unique question
+        for attempt in range(8):
+            try:
+                response = model.generate_content(prompt)
+                cleaned_text = response.text.strip().replace('```json', '').replace('```', '').strip()
 
-        # Validate required fields
-        required_fields = ["question", "answer", "options", "explanation"]
-        missing_fields = [field for field in required_fields if field not in question_data or not question_data[field]]
-        if missing_fields:
-            logger.error(f"Missing fields {missing_fields} in response for topic {topic}: {question_data}")
-            raise ValueError(f"Invalid response format: missing {missing_fields}")
+                # Robust JSON parsing
+                try:
+                    question_data = json.loads(cleaned_text)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Attempt {attempt + 1}/8: JSON parsing failed for topic {topic}: {str(e)}. Raw response: {cleaned_text}")
+                    if attempt == 7:
+                        raise  # On last attempt, let it fall to except block
+                    continue
 
-        # Ensure options is a list of 4 distinct items
-        if not isinstance(question_data["options"], list) or len(set(question_data["options"])) != 4:
-            logger.error(f"Invalid options format for topic {topic}: {question_data['options']}")
-            raise ValueError("Options must be a list of 4 unique items")
+                # Validate required fields
+                required_fields = ["question", "answer", "options", "explanation"]
+                missing_fields = [field for field in required_fields if field not in question_data or not question_data[field]]
+                if missing_fields:
+                    logger.error(f"Attempt {attempt + 1}/8: Missing fields {missing_fields} in response for topic {topic}: {question_data}")
+                    if attempt == 7:
+                        raise ValueError(f"Invalid response format: missing {missing_fields}")
+                    continue
 
-        # Check for similarity
-        for q in prior_questions:
-            if (q.question_text.lower() == question_data['question'].lower() or 
-                q.answer_text.lower() == question_data['answer'].lower() or
-                q.answer_text.lower() in question_data['answer'].lower() or 
-                question_data['answer'].lower() in q.answer_text.lower()):
-                logger.warning(f"Similarity detected for topic {topic}: {question_data['question']}")
-                raise ValueError("Generated question or answer is too similar to a prior one")
+                # Ensure options is a list of 4 distinct items
+                if not isinstance(question_data["options"], list) or len(set(question_data["options"])) != 4:
+                    logger.error(f"Attempt {attempt + 1}/8: Invalid options format for topic {topic}: {question_data['options']}")
+                    if attempt == 7:
+                        raise ValueError("Options must be a list of 4 unique items")
+                    continue
 
-        # Randomize options
-        random.shuffle(question_data["options"])
-        question_data["is_fallback"] = False
-        return question_data
+                # Check for similarity
+                is_similar = False
+                for q in prior_questions:
+                    if (q.question_text.lower() == question_data['question'].lower() or 
+                        q.answer_text.lower() == question_data['answer'].lower() or
+                        q.answer_text.lower() in question_data['answer'].lower() or 
+                        question_data['answer'].lower() in q.answer_text.lower()):
+                        logger.warning(f"Attempt {attempt + 1}/8: Similarity detected for topic {topic}: {question_data['question']}")
+                        is_similar = True
+                        break
+                if is_similar:
+                    if attempt == 7:
+                        raise ValueError("Unable to generate a unique question after 8 attempts")
+                    continue
+
+                # Success: Randomize options and return
+                random.shuffle(question_data["options"])
+                question_data["is_fallback"] = False
+                logger.debug(f"Game {game_id}: Generated unique question '{question_data['question']}' for topic '{topic}' on attempt {attempt + 1}")
+                return question_data
+
+            except Exception as e:
+                logger.error(f"Attempt {attempt + 1}/8 failed for topic {topic}: {str(e)}")
+                if attempt == 7:
+                    raise  # On last attempt, propagate the exception
 
     except (json.JSONDecodeError, ValueError) as e:
-        logger.error(f"Error for topic {topic}: {str(e)}")
-        if "similar" in str(e).lower():
-            new_topic = suggest_random_topic(game_id)
-            logger.info(f"Retrying with random topic: {new_topic}")
-            return get_trivia_question(new_topic, game_id)
+        logger.error(f"Exhausted 8 attempts for topic {topic}: {str(e)}")
+        # Fallback with a generic question, avoiding recent cache
         options = ["Unable to generate", "Option B", "Option C", "Option D"]
         random.shuffle(options)
         return {
             "question": f"What is a fact about {topic}?",
             "answer": "Unable to generate",
             "options": options,
-            "explanation": f"Error: {str(e)}",
+            "explanation": f"Error: {str(e)} after 8 attempts",
             "is_fallback": True
         }
     except TimeoutError:
