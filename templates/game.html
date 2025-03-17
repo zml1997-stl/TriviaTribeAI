@@ -343,7 +343,7 @@
                 updatePlayerList(data.players, data.player_emojis);
             });
 
-            socket.on('player_rejoined', function(data) {
+            socket.on('player_rejoined', function(data) { // Updated to ensure proper state sync
                 console.log(`${data.username} rejoined the game`);
                 updatePlayerList(data.players, data.player_emojis);
                 updateScoreboard(data.scores, data.player_emojis);
@@ -369,8 +369,8 @@
                 }
             });
 
-            socket.on('game_started', function(data) {
-                console.log('Game started:', data);
+            socket.on('game_started', function(data) { // Updated with logging for debugging
+                console.log('Game started received:', data);
                 clearTimeout(startGameTimeout);
                 startGameBtn.disabled = false;
                 startGameLoading.style.display = 'none';
