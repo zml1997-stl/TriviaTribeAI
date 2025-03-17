@@ -282,23 +282,25 @@ def get_trivia_question(topic, game_id):
         prior_questions_str = "\n".join(prior_questions_list[:10]) if prior_questions_list else "None"
 
         prompt = f"""
-        Generate a trivia question about "{topic}" with a single, clear answer.
-        Requirements:
-        - Engaging, specific, average difficulty (not too easy or obscure; suitable for a general audience).
-        - Avoid current events or topics requiring information after December 31, 2024.
-        - Ensure factual accuracy and clarity in wording.
-        - Avoid ambiguity or multiple possible answers.
-        - Do NOT repeat, rephrase, or closely mimic any of the following previously used questions or their answers in this game (avoid similar questions with answers that are the same or conceptually close):
-          {prior_questions_str}
-        - Provide four multiple-choice options: one correct answer and three plausible distractors that are distinctly different from prior answers.
-        - Include a brief explanation (1-2 sentences) of the correct answer.
-        - Format the response in JSON with the following structure:
-          ```json
-          {{
-            "question": "string",
-            "answer": "string",
-            "options": ["string", "string", "string", "string"],
-            "explanation": "string"
+        As an expert in crafting trivia questions, generate a trivia question about "{topic}" with one clear, definitive answer.  
+        Requirements:  
+        - Make it engaging, specific, and of average difficulty (challenging yet accessible for a general audience, not overly simple or obscure).  
+        - Do not use current events or information beyond December 31, 2024.  
+        - Ensure the question is factually accurate, clearly worded, and free of ambiguity or multiple valid answers.  
+        - The question must not include the exact answer, any part of it, synonyms, or direct hints (e.g., if the answer is 'oxygen,' avoid questions like 'What gas, discovered on the sun before Earth, is vital for life?'). Check that the answer word or phrase is absent from the question text.  
+        - Both the question and its answer must be original and entirely distinct from previous questions and answers in this game. Avoid repetition, synonyms, variations, or thematic overlap (e.g., if 'Einstein' was an answer, avoid 'Newton' or other physicists). Cross-check the answer against the list of prior answers and, if similar, generate a new question and answer focusing on a different aspect of the topic.  
+        - Refer to the following list of prior questions and answers to ensure distinctiveness:  
+          {prior_questions_str}  
+        - After drafting, review the question and answer to confirm compliance with these rules. If in doubt, adjust to a less common aspect of the topic.  
+        - Provide four multiple-choice options: one correct answer and three plausible distractors that reflect common misconceptions or errors related to the topic. Ensure distractors are distinct from prior answers.  
+        - Include a concise explanation (1-2 sentences) clarifying why the correct answer is right and the distractors are wrong.  
+        - Format the response in JSON as follows:  
+          ```json  
+          {{  
+            "question": "string",  
+            "answer": "string",  
+            "options": ["string", "string", "string", "string"],  
+            "explanation": "string"  
           }}
         """
         response = model.generate_content(prompt)
