@@ -61,14 +61,13 @@
             margin-top: 10px; 
             display: none; 
         }
-        /* Push-to-Talk Button Styles */
         .ptt-control-btn {
             position: fixed;
             bottom: 10px;
             left: 65px;
             width: 35px;
             height: 35px;
-            background-color: #FF0000; /* Red when muted (default) */
+            background-color: #FF0000;
             border: none;
             border-radius: 50%;
             color: #2C1A3B;
@@ -80,17 +79,17 @@
             z-index: 1000;
             cursor: pointer;
             transition: background-color 0.2s ease;
-            user-select: none; /* Prevent text selection during hold */
+            user-select: none;
         }
         .ptt-control-btn:hover {
-            background-color: #CC0000; /* Darker red on hover when muted */
+            background-color: #CC0000;
         }
         .ptt-control-btn.active {
-            background-color: #00FF00; /* Green when held (transmitting) */
+            background-color: #00FF00;
             box-shadow: 0 0 8px rgba(0, 255, 0, 0.5);
         }
         .ptt-control-btn.active:hover {
-            background-color: #00CC00; /* Darker green on hover when active */
+            background-color: #00CC00;
         }
         .speaking-indicator {
             position: fixed;
@@ -352,8 +351,23 @@
             connectToSocket();
             setupEventListeners();
             window.switchToHomeMusic();
-            // Voice chat initializes on first PTT press
         });
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.style.position = 'fixed';
+            toast.style.bottom = '60px';
+            toast.style.left = '50%';
+            toast.style.transform = 'translateX(-50%)';
+            toast.style.backgroundColor = '#333';
+            toast.style.color = '#fff';
+            toast.style.padding = '10px 20px';
+            toast.style.borderRadius = '5px';
+            toast.style.zIndex = '1001';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
 
         function hideAllSections() {
             waitingLobby.style.display = 'none';
@@ -371,9 +385,7 @@
         function showError(message) {
             topicErrorDiv.textContent = message;
             topicErrorDiv.style.display = 'block';
-            setTimeout(() => {
-                topicErrorDiv.style.display = 'none';
-            }, 5000);
+            setTimeout(() => topicErrorDiv.style.display = 'none', 5000);
         }
 
         function connectToSocket() {
@@ -413,7 +425,7 @@
                 console.error('Reconnection failed');
                 connectionStatus.textContent = 'Disconnected';
                 connectionStatus.className = 'badge bg-danger ms-2';
-                alert('Lost connection to the game server. Please refresh the page to try again.');
+                showToast('Lost connection to server. Please refresh.');
             });
 
             socket.on('player_joined', function(data) {
@@ -542,11 +554,10 @@
                 } else if (data.message.includes('Game not found')) {
                     window.location.href = '/';
                 } else {
-                    alert(`Error: ${data.message}`);
+                    showToast(`Error: ${data.message}`);
                 }
             });
 
-            // WebRTC Signaling Handlers
             socket.on('voice_offer', async function(data) {
                 if (data.from !== username) {
                     await handleOffer(data.from, data.offer);
@@ -577,7 +588,7 @@
                     startGameTimeout = setTimeout(() => {
                         startGameBtn.disabled = false;
                         startGameLoading.style.display = 'none';
-                        alert('Failed to start game. Please try again.');
+                        showToast('Failed to start game. Try again.');
                     }, 10000);
                 });
             }
@@ -657,7 +668,6 @@
                 }
             });
 
-            // Push-to-Talk Event Listeners
             pttBtn.addEventListener('mousedown', startTalking);
             pttBtn.addEventListener('mouseup', stopTalking);
             pttBtn.addEventListener('mouseleave', stopTalking);
@@ -666,19 +676,18 @@
             pttBtn.addEventListener('touchcancel', stopTalking);
         }
 
-        // Voice Chat Functions
         async function initializeVoiceChat() {
             if (isVoiceInitialized) return;
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                alert('Microphone access granted. Hold the 🎤 button to talk.');
-                localStream.getAudioTracks()[0].enabled = false; // Muted by default
+                showToast('Microphone access granted. Hold 🎤 to talk.');
+                localStream.getAudioTracks()[0].enabled = false;
                 isVoiceInitialized = true;
                 updateVoiceChatParticipants(playersInRoom);
             } catch (err) {
                 console.error('Microphone access denied:', err);
-                alert('Microphone access is required for voice chat. Please enable it in your browser settings.');
-                pttBtn.style.backgroundColor = '#808080'; // Grey out if no mic
+                showToast('Microphone access denied. Check settings.');
+                pttBtn.style.backgroundColor = '#808080';
                 pttBtn.disabled = true;
             }
         }
@@ -692,7 +701,7 @@
                 localStream.getAudioTracks()[0].enabled = true;
                 isPTTPressed = true;
                 pttBtn.classList.add('active');
-                alert('You are now talking. Release to mute.');
+                showToast('Talking... Release to mute.');
             }
         }
 
@@ -718,6 +727,7 @@
                 if (!playersInRoom.includes(peer)) {
                     peerConnections[peer].close();
                     delete peerConnections[peer];
+                    console.log(`Closed peer connection with ${peer}`);
                 }
             }
 
@@ -731,77 +741,161 @@
         async function createPeerConnection(peerUsername) {
             const config = {
                 iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
+                    { urls: 'stun:stun.relay.metered.ca:80' },
+                    { 
+                        urls: 'turn:global.relay.metered.ca:80',
+                        username: '0284347a98a59a7761092e15',
+                        credential: 'Gurx7T74oANA9tmJ'
+                    },
+                    { 
+                        urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+                        username: '0284347a98a59a7761092e15',
+                        credential: 'Gurx7T74oANA9tmJ'
+                    },
+                    { 
+                        urls: 'turn:global.relay.metered.ca:443',
+                        username: '0284347a98a59a7761092e15',
+                        credential: 'Gurx7T74oANA9tmJ'
+                    },
+                    { 
+                        urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+                        username: '0284347a98a59a7761092e15',
+                        credential: 'Gurx7T74oANA9tmJ'
+                    }
                 ]
             };
             peerConnections[peerUsername] = new RTCPeerConnection(config);
 
             localStream.getTracks().forEach(track => {
                 peerConnections[peerUsername].addTrack(track, localStream);
+                console.log(`Added track to peer connection for ${peerUsername}`);
             });
 
             peerConnections[peerUsername].onicecandidate = event => {
                 if (event.candidate) {
+                    console.log(`Sending ICE candidate to ${peerUsername}:`, event.candidate);
                     socket.emit('voice_candidate', { game_id: gameId, from: username, to: peerUsername, candidate: event.candidate });
                 }
             };
 
             peerConnections[peerUsername].ontrack = event => {
+                console.log(`Received track from ${peerUsername}:`, event.streams[0]);
                 const audio = new Audio();
                 audio.srcObject = event.streams[0];
                 audio.autoplay = true;
                 audio.volume = 0.5;
-                audio.play().catch(() => alert('Audio playback requires interaction. Please click OK to hear others.'));
+                audio.play()
+                    .then(() => console.log(`Audio playing for ${peerUsername}`))
+                    .catch(err => {
+                        console.error(`Audio playback failed for ${peerUsername}:`, err);
+                        showToast('Click anywhere to enable audio.');
+                        document.body.addEventListener('click', () => audio.play(), { once: true });
+                    });
             };
 
-            const offer = await peerConnections[peerUsername].createOffer();
-            await peerConnections[peerUsername].setLocalDescription(offer);
-            socket.emit('voice_offer', { game_id: gameId, from: username, to: peerUsername, offer: offer });
+            peerConnections[peerUsername].onconnectionstatechange = () => {
+                console.log(`Peer connection state with ${peerUsername}: ${peerConnections[peerUsername].connectionState}`);
+            };
+
+            try {
+                const offer = await peerConnections[peerUsername].createOffer();
+                await peerConnections[peerUsername].setLocalDescription(offer);
+                console.log(`Sending offer to ${peerUsername}:`, offer);
+                socket.emit('voice_offer', { game_id: gameId, from: username, to: peerUsername, offer: offer });
+            } catch (err) {
+                console.error(`Error creating offer for ${peerUsername}:`, err);
+            }
         }
 
         async function handleOffer(from, offer) {
             if (!peerConnections[from]) {
                 const config = {
                     iceServers: [
-                        { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' }
+                        { urls: 'stun:stun.relay.metered.ca:80' },
+                        { 
+                            urls: 'turn:global.relay.metered.ca:80',
+                            username: '0284347a98a59a7761092e15',
+                            credential: 'Gurx7T74oANA9tmJ'
+                        },
+                        { 
+                            urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+                            username: '0284347a98a59a7761092e15',
+                            credential: 'Gurx7T74oANA9tmJ'
+                        },
+                        { 
+                            urls: 'turn:global.relay.metered.ca:443',
+                            username: '0284347a98a59a7761092e15',
+                            credential: 'Gurx7T74oANA9tmJ'
+                        },
+                        { 
+                            urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+                            username: '0284347a98a59a7761092e15',
+                            credential: 'Gurx7T74oANA9tmJ'
+                        }
                     ]
                 };
                 peerConnections[from] = new RTCPeerConnection(config);
 
                 localStream.getTracks().forEach(track => {
                     peerConnections[from].addTrack(track, localStream);
+                    console.log(`Added track to peer connection for ${from}`);
                 });
 
                 peerConnections[from].onicecandidate = event => {
                     if (event.candidate) {
+                        console.log(`Sending ICE candidate to ${from}:`, event.candidate);
                         socket.emit('voice_candidate', { game_id: gameId, from: username, to: from, candidate: event.candidate });
                     }
                 };
 
                 peerConnections[from].ontrack = event => {
+                    console.log(`Received track from ${from}:`, event.streams[0]);
                     const audio = new Audio();
                     audio.srcObject = event.streams[0];
                     audio.autoplay = true;
                     audio.volume = 0.5;
-                    audio.play().catch(() => alert('Audio playback requires interaction. Please click OK to hear others.'));
+                    audio.play()
+                        .then(() => console.log(`Audio playing for ${from}`))
+                        .catch(err => {
+                            console.error(`Audio playback failed for ${from}:`, err);
+                            showToast('Click anywhere to enable audio.');
+                            document.body.addEventListener('click', () => audio.play(), { once: true });
+                        });
+                };
+
+                peerConnections[from].onconnectionstatechange = () => {
+                    console.log(`Peer connection state with ${from}: ${peerConnections[from].connectionState}`);
                 };
             }
 
-            await peerConnections[from].setRemoteDescription(new RTCSessionDescription(offer));
-            const answer = await peerConnections[from].createAnswer();
-            await peerConnections[from].setLocalDescription(answer);
-            socket.emit('voice_answer', { game_id: gameId, from: username, to: from, answer: answer });
+            try {
+                await peerConnections[from].setRemoteDescription(new RTCSessionDescription(offer));
+                const answer = await peerConnections[from].createAnswer();
+                await peerConnections[from].setLocalDescription(answer);
+                console.log(`Sending answer to ${from}:`, answer);
+                socket.emit('voice_answer', { game_id: gameId, from: username, to: from, answer: answer });
+            } catch (err) {
+                console.error(`Error handling offer from ${from}:`, err);
+            }
         }
 
         async function handleAnswer(from, answer) {
-            await peerConnections[from].setRemoteDescription(new RTCSessionDescription(answer));
+            try {
+                await peerConnections[from].setRemoteDescription(new RTCSessionDescription(answer));
+                console.log(`Answer set for ${from}`);
+            } catch (err) {
+                console.error(`Error handling answer from ${from}:`, err);
+            }
         }
 
         async function handleCandidate(from, candidate) {
-            if (peerConnections[from]) {
-                await peerConnections[from].addIceCandidate(new RTCIceCandidate(candidate));
+            try {
+                if (peerConnections[from]) {
+                    await peerConnections[from].addIceCandidate(new RTCIceCandidate(candidate));
+                    console.log(`Added ICE candidate from ${from}`);
+                }
+            } catch (err) {
+                console.error(`Error handling candidate from ${from}:`, err);
             }
         }
 
