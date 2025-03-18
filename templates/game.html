@@ -277,7 +277,9 @@
 
     <button id="mute-btn" class="music-control-btn">🔇</button>
     <button id="ptt-btn" class="ptt-control-btn">🎤</button>
-    <div id="speaking-indicator" class="speaking-indicator"></div>
+    <div id="speaking-indicator" class="speaking-indicator">
+        <!-- Player audio elements will be added dynamically -->
+    </div>
     
     <!-- Chat Button and Popup -->
     <button id="chat-btn" class="chat-control-btn">💬 <span id="unread-count" class="badge bg-danger" style="display: none;">0</span></button>
@@ -351,7 +353,7 @@
             connectToSocket();
             setupEventListeners();
             window.switchToHomeMusic();
-            initializeVoiceChat(); // Start voice chat setup on load
+            initializeVoiceChat();
         });
 
         function showToast(message) {
@@ -410,9 +412,6 @@
                 console.error('Connection error:', error);
                 connectionStatus.textContent = 'Connection Failed';
                 connectionStatus.className = 'badge bg-danger ms-2';
-                if (reconnectAttempts < maxReconnectAttempts) {
-                    console.log(`Reconnection attempt ${reconnectAttempts + 1} of ${maxReconnectAttempts}`);
-                }
             });
 
             socket.on('reconnect', function(attempt) {
@@ -712,8 +711,14 @@
                 isPTTPressed = true;
                 pttBtn.classList.add('active');
                 showToast('Talking... Release to mute.');
-                updateSpeakingIndicator(username, true);
                 socket.emit('speaking_status', { game_id: gameId, username: username, speaking: true });
+                // Ensure audio context is active after user interaction
+                playersInRoom.forEach(player => {
+                    const audio = document.getElementById(`voice-${player}`);
+                    if (audio && audio.srcObject) {
+                        audio.play().catch(err => console.error(`Failed to play ${player}'s audio:`, err));
+                    }
+                });
             }
         }
 
@@ -727,7 +732,6 @@
                 localStream.getAudioTracks()[0].enabled = false;
                 isPTTPressed = false;
                 pttBtn.classList.remove('active');
-                updateSpeakingIndicator(username, false);
                 socket.emit('speaking_status', { game_id: gameId, username: username, speaking: false });
             }
         }
@@ -735,7 +739,12 @@
         async function updateVoiceChatParticipants(players) {
             console.log('Updating voice chat participants:', players);
             playersInRoom = players.filter(p => p !== username);
-            speakingIndicator.innerHTML = playersInRoom.map(p => `<div class="player" data-username="${p}"><span class="player-emoji">${playerEmojis[p]}</span>${p}</div>`).join('');
+            speakingIndicator.innerHTML = playersInRoom.map(p => `
+                <div class="player" data-username="${p}">
+                    <span class="player-emoji">${playerEmojis[p]}</span>${p}
+                    <audio id="voice-${p}" autoplay></audio>
+                </div>
+            `).join('');
 
             for (let peer in peerConnections) {
                 if (!playersInRoom.includes(peer)) {
@@ -790,17 +799,19 @@
 
             peerConnections[peerUsername].ontrack = event => {
                 console.log(`Received remote stream from ${peerUsername}`);
-                const audio = new Audio();
-                audio.srcObject = event.streams[0];
-                audio.autoplay = true;
-                audio.volume = 0.5;
-                audio.play()
-                    .then(() => console.log(`Playing audio from ${peerUsername}`))
-                    .catch(err => {
-                        console.error(`Audio playback failed for ${peerUsername}:`, err);
-                        showToast('Click anywhere to enable audio.');
-                        document.body.addEventListener('click', () => audio.play(), { once: true });
-                    });
+                const audio = document.getElementById(`voice-${peerUsername}`);
+                if (audio) {
+                    audio.srcObject = event.streams[0];
+                    audio.volume = 0.5;
+                    audio.play()
+                        .then(() => console.log(`Playing audio from ${peerUsername}`))
+                        .catch(err => {
+                            console.error(`Audio playback failed for ${peerUsername}:`, err);
+                            showToast('Click the 🎤 button to enable voice chat audio.');
+                        });
+                } else {
+                    console.error(`No audio element found for ${peerUsername}`);
+                }
             };
 
             peerConnections[peerUsername].onconnectionstatechange = () => {
@@ -852,17 +863,19 @@
 
                 peerConnections[from].ontrack = event => {
                     console.log(`Received remote stream from ${from}`);
-                    const audio = new Audio();
-                    audio.srcObject = event.streams[0];
-                    audio.autoplay = true;
-                    audio.volume = 0.5;
-                    audio.play()
-                        .then(() => console.log(`Playing audio from ${from}`))
-                        .catch(err => {
-                            console.error(`Audio playback failed for ${from}:`, err);
-                            showToast('Click anywhere to enable audio.');
-                            document.body.addEventListener('click', () => audio.play(), { once: true });
-                        });
+                    const audio = document.getElementById(`voice-${from}`);
+                    if (audio) {
+                        audio.srcObject = event.streams[0];
+                        audio.volume = 0.5;
+                        audio.play()
+                            .then(() => console.log(`Playing audio from ${from}`))
+                            .catch(err => {
+                                console.error(`Audio playback failed for ${from}:`, err);
+                                showToast('Click the 🎤 button to enable voice chat audio.');
+                            });
+                    } else {
+                        console.error(`No audio element found for ${from}`);
+                    }
                 };
 
                 peerConnections[from].onconnectionstatechange = () => {
