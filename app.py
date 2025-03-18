@@ -819,6 +819,19 @@ def handle_voice_candidate(data):
         socketio.emit('voice_candidate', {'from': from_username, 'candidate': candidate}, to=to_player.sid)
         logger.info(f"Game {game_id}: Relayed voice_candidate from {from_username} to {to_username} (SID: {to_player.sid})")
 
+@socketio.on('speaking_status')
+def handle_speaking_status(data):
+    game_id = data.get('game_id')
+    username = data.get('username')
+    speaking = data.get('speaking')
+    with app.app_context():
+        game = Game.query.filter_by(id=game_id).first()
+        if not game:
+            socketio.emit('error', {'message': 'Game not found'}, to=request.sid)
+            return
+        logger.info(f"Game {game_id}: {username} is {'speaking' if speaking else 'not speaking'}")
+        socketio.emit('speaking_status', {'username': username, 'speaking': speaking}, room=game_id)
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     socketio.run(app, host='0.0.0.0', port=port, debug=True)
