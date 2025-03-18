@@ -99,7 +99,13 @@ def get_player_top_topics(game_id, username, limit=3):
     if not player:
         logger.debug(f"No player found for {username} in game {game_id}")
         return "Enter a topic or click Random Topic"
-    top_topics = (db.session.query(Topic.normalized_name, func.count(Rating.id).label('like_count')).join(Rating, Rating.topic_id == Topic.id).filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 1).group_by(Topic.normalized_name).order_by(func.count(Rating.id).desc()).limit(limit).all())
+    top_topics = (db.session.query(Topic.normalized_name, func.count(Rating.id).label('like_count'))
+                  .join(Rating, Rating.topic_id == Topic.id)
+                  .filter(Rating.game_id == game_id, Rating.player_id == player.id, Rating.rating == 1)
+                  .group_by(Topic.normalized_name)
+                  .order_by(func.count(Rating.id).desc())
+                  .limit(limit)
+                  .all())
     result = ", ".join([row.normalized_name for row in top_topics]) if top_topics else "Enter a topic or click Random Topic"
     logger.debug(f"Top liked topics for {username} in game {game_id}: {result}")
     return result
@@ -163,7 +169,7 @@ def suggest_random_topic(game_id, username=None):
         if len(recent_random_topics[game_id]) > 3:
             recent_random_topics[game_id].pop(0)
         return topic
-        
+
 @timeout_decorator.timeout(10, timeout_exception=TimeoutError)
 def get_trivia_question(topic, game_id):
     try:
@@ -769,10 +775,11 @@ def handle_voice_offer(data):
             return
         to_player = Player.query.filter_by(game_id=game_id, username=to_username).first()
         if not to_player or to_player.disconnected or not to_player.sid:
-            logger.debug(f"Game {game_id}: Cannot send offer to {to_username} - disconnected or no SID")
+            logger.info(f"Game {game_id}: Cannot send offer to {to_username} - disconnected or no SID")
             return
+        logger.info(f"Game {game_id}: Received voice_offer from {from_username} to {to_username}")
         socketio.emit('voice_offer', {'from': from_username, 'offer': offer}, to=to_player.sid)
-        logger.debug(f"Game {game_id}: Relayed voice offer from {from_username} to {to_username}")
+        logger.info(f"Game {game_id}: Relayed voice_offer from {from_username} to {to_username} (SID: {to_player.sid})")
 
 @socketio.on('voice_answer')
 def handle_voice_answer(data):
@@ -787,10 +794,11 @@ def handle_voice_answer(data):
             return
         to_player = Player.query.filter_by(game_id=game_id, username=to_username).first()
         if not to_player or to_player.disconnected or not to_player.sid:
-            logger.debug(f"Game {game_id}: Cannot send answer to {to_username} - disconnected or no SID")
+            logger.info(f"Game {game_id}: Cannot send answer to {to_username} - disconnected or no SID")
             return
+        logger.info(f"Game {game_id}: Received voice_answer from {from_username} to {to_username}")
         socketio.emit('voice_answer', {'from': from_username, 'answer': answer}, to=to_player.sid)
-        logger.debug(f"Game {game_id}: Relayed voice answer from {from_username} to {to_username}")
+        logger.info(f"Game {game_id}: Relayed voice_answer from {from_username} to {to_username} (SID: {to_player.sid})")
 
 @socketio.on('voice_candidate')
 def handle_voice_candidate(data):
@@ -805,10 +813,11 @@ def handle_voice_candidate(data):
             return
         to_player = Player.query.filter_by(game_id=game_id, username=to_username).first()
         if not to_player or to_player.disconnected or not to_player.sid:
-            logger.debug(f"Game {game_id}: Cannot send ICE candidate to {to_username} - disconnected or no SID")
+            logger.info(f"Game {game_id}: Cannot send ICE candidate to {to_username} - disconnected or no SID")
             return
+        logger.info(f"Game {game_id}: Received voice_candidate from {from_username} to {to_username}")
         socketio.emit('voice_candidate', {'from': from_username, 'candidate': candidate}, to=to_player.sid)
-        logger.debug(f"Game {game_id}: Relayed ICE candidate from {from_username} to {to_username}")
+        logger.info(f"Game {game_id}: Relayed voice_candidate from {from_username} to {to_username} (SID: {to_player.sid})")
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
