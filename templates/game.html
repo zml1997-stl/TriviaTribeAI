@@ -316,7 +316,7 @@
         let selectedAnswer = null;
         let playerEmojis = {};
         let reconnectAttempts = 0;
-        const maxReconnectAttempts = 10;
+        let maxReconnectAttempts = 10;
         let currentTopicId = null;
         let currentTopic = null;
         let currentQuestionId = null;
@@ -351,6 +351,7 @@
             connectToSocket();
             setupEventListeners();
             window.switchToHomeMusic();
+            initializeVoiceChat(); // Start voice chat setup on load
         });
 
         function showToast(message) {
@@ -575,6 +576,10 @@
                     await handleCandidate(data.from, data.candidate);
                 }
             });
+
+            socket.on('speaking_status', function(data) {
+                updateSpeakingIndicator(data.username, data.speaking);
+            });
         }
 
         let startGameTimeout;
@@ -678,21 +683,26 @@
 
         async function initializeVoiceChat() {
             if (isVoiceInitialized) return;
+            console.log('Initializing voice chat');
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                console.log('Microphone access granted');
                 showToast('Microphone access granted. Hold 🎤 to talk.');
-                localStream.getAudioTracks()[0].enabled = false;
+                localStream.getAudioTracks()[0].enabled = false; // Muted by default
                 isVoiceInitialized = true;
-                updateVoiceChatParticipants(playersInRoom);
+                if (playersInRoom.length > 0) {
+                    updateVoiceChatParticipants(playersInRoom);
+                }
             } catch (err) {
                 console.error('Microphone access denied:', err);
-                showToast('Microphone access denied. Check settings.');
+                showToast('Microphone access denied. Voice chat disabled.');
                 pttBtn.style.backgroundColor = '#808080';
                 pttBtn.disabled = true;
             }
         }
 
         function startTalking() {
+            console.log('Mic button pressed');
             if (!isVoiceInitialized) {
                 initializeVoiceChat();
                 return;
@@ -702,6 +712,8 @@
                 isPTTPressed = true;
                 pttBtn.classList.add('active');
                 showToast('Talking... Release to mute.');
+                updateSpeakingIndicator(username, true);
+                socket.emit('speaking_status', { game_id: gameId, username: username, speaking: true });
             }
         }
 
@@ -715,13 +727,15 @@
                 localStream.getAudioTracks()[0].enabled = false;
                 isPTTPressed = false;
                 pttBtn.classList.remove('active');
+                updateSpeakingIndicator(username, false);
+                socket.emit('speaking_status', { game_id: gameId, username: username, speaking: false });
             }
         }
 
         async function updateVoiceChatParticipants(players) {
-            if (!isVoiceInitialized) return;
+            console.log('Updating voice chat participants:', players);
             playersInRoom = players.filter(p => p !== username);
-            speakingIndicator.innerHTML = players.map(p => `<div class="player" data-username="${p}"><span class="player-emoji">${playerEmojis[p]}</span>${p}</div>`).join('');
+            speakingIndicator.innerHTML = playersInRoom.map(p => `<div class="player" data-username="${p}"><span class="player-emoji">${playerEmojis[p]}</span>${p}</div>`).join('');
 
             for (let peer in peerConnections) {
                 if (!playersInRoom.includes(peer)) {
@@ -731,45 +745,41 @@
                 }
             }
 
-            for (let player of playersInRoom) {
-                if (!peerConnections[player]) {
-                    await createPeerConnection(player);
+            if (isVoiceInitialized) {
+                for (let player of playersInRoom) {
+                    if (!peerConnections[player]) {
+                        await createPeerConnection(player);
+                    }
                 }
             }
         }
 
+        function updateSpeakingIndicator(player, isSpeaking) {
+            const playerEl = speakingIndicator.querySelector(`.player[data-username="${player}"]`);
+            if (playerEl) {
+                playerEl.classList.toggle('speaking', isSpeaking);
+            }
+        }
+
         async function createPeerConnection(peerUsername) {
+            console.log(`Creating peer connection for ${peerUsername}`);
             const config = {
                 iceServers: [
                     { urls: 'stun:stun.relay.metered.ca:80' },
-                    { 
-                        urls: 'turn:global.relay.metered.ca:80',
-                        username: '0284347a98a59a7761092e15',
-                        credential: 'Gurx7T74oANA9tmJ'
-                    },
-                    { 
-                        urls: 'turn:global.relay.metered.ca:80?transport=tcp',
-                        username: '0284347a98a59a7761092e15',
-                        credential: 'Gurx7T74oANA9tmJ'
-                    },
-                    { 
-                        urls: 'turn:global.relay.metered.ca:443',
-                        username: '0284347a98a59a7761092e15',
-                        credential: 'Gurx7T74oANA9tmJ'
-                    },
-                    { 
-                        urls: 'turns:global.relay.metered.ca:443?transport=tcp',
-                        username: '0284347a98a59a7761092e15',
-                        credential: 'Gurx7T74oANA9tmJ'
-                    }
+                    { urls: 'turn:global.relay.metered.ca:80', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' },
+                    { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' },
+                    { urls: 'turn:global.relay.metered.ca:443', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' },
+                    { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' }
                 ]
             };
             peerConnections[peerUsername] = new RTCPeerConnection(config);
 
-            localStream.getTracks().forEach(track => {
-                peerConnections[peerUsername].addTrack(track, localStream);
-                console.log(`Added track to peer connection for ${peerUsername}`);
-            });
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    peerConnections[peerUsername].addTrack(track, localStream);
+                    console.log(`Added track to peer connection for ${peerUsername}`);
+                });
+            }
 
             peerConnections[peerUsername].onicecandidate = event => {
                 if (event.candidate) {
@@ -779,13 +789,13 @@
             };
 
             peerConnections[peerUsername].ontrack = event => {
-                console.log(`Received track from ${peerUsername}:`, event.streams[0]);
+                console.log(`Received remote stream from ${peerUsername}`);
                 const audio = new Audio();
                 audio.srcObject = event.streams[0];
                 audio.autoplay = true;
                 audio.volume = 0.5;
                 audio.play()
-                    .then(() => console.log(`Audio playing for ${peerUsername}`))
+                    .then(() => console.log(`Playing audio from ${peerUsername}`))
                     .catch(err => {
                         console.error(`Audio playback failed for ${peerUsername}:`, err);
                         showToast('Click anywhere to enable audio.');
@@ -794,7 +804,12 @@
             };
 
             peerConnections[peerUsername].onconnectionstatechange = () => {
-                console.log(`Peer connection state with ${peerUsername}: ${peerConnections[peerUsername].connectionState}`);
+                console.log(`Connection state with ${peerUsername}: ${peerConnections[peerUsername].connectionState}`);
+                if (peerConnections[peerUsername].connectionState === 'failed' || peerConnections[peerUsername].connectionState === 'disconnected') {
+                    peerConnections[peerUsername].close();
+                    delete peerConnections[peerUsername];
+                    console.log(`Cleaned up failed connection with ${peerUsername}`);
+                }
             };
 
             try {
@@ -808,38 +823,25 @@
         }
 
         async function handleOffer(from, offer) {
+            console.log(`Received offer from ${from}`);
             if (!peerConnections[from]) {
                 const config = {
                     iceServers: [
                         { urls: 'stun:stun.relay.metered.ca:80' },
-                        { 
-                            urls: 'turn:global.relay.metered.ca:80',
-                            username: '0284347a98a59a7761092e15',
-                            credential: 'Gurx7T74oANA9tmJ'
-                        },
-                        { 
-                            urls: 'turn:global.relay.metered.ca:80?transport=tcp',
-                            username: '0284347a98a59a7761092e15',
-                            credential: 'Gurx7T74oANA9tmJ'
-                        },
-                        { 
-                            urls: 'turn:global.relay.metered.ca:443',
-                            username: '0284347a98a59a7761092e15',
-                            credential: 'Gurx7T74oANA9tmJ'
-                        },
-                        { 
-                            urls: 'turns:global.relay.metered.ca:443?transport=tcp',
-                            username: '0284347a98a59a7761092e15',
-                            credential: 'Gurx7T74oANA9tmJ'
-                        }
+                        { urls: 'turn:global.relay.metered.ca:80', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' },
+                        { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' },
+                        { urls: 'turn:global.relay.metered.ca:443', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' },
+                        { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' }
                     ]
                 };
                 peerConnections[from] = new RTCPeerConnection(config);
 
-                localStream.getTracks().forEach(track => {
-                    peerConnections[from].addTrack(track, localStream);
-                    console.log(`Added track to peer connection for ${from}`);
-                });
+                if (localStream) {
+                    localStream.getTracks().forEach(track => {
+                        peerConnections[from].addTrack(track, localStream);
+                        console.log(`Added track to peer connection for ${from}`);
+                    });
+                }
 
                 peerConnections[from].onicecandidate = event => {
                     if (event.candidate) {
@@ -849,13 +851,13 @@
                 };
 
                 peerConnections[from].ontrack = event => {
-                    console.log(`Received track from ${from}:`, event.streams[0]);
+                    console.log(`Received remote stream from ${from}`);
                     const audio = new Audio();
                     audio.srcObject = event.streams[0];
                     audio.autoplay = true;
                     audio.volume = 0.5;
                     audio.play()
-                        .then(() => console.log(`Audio playing for ${from}`))
+                        .then(() => console.log(`Playing audio from ${from}`))
                         .catch(err => {
                             console.error(`Audio playback failed for ${from}:`, err);
                             showToast('Click anywhere to enable audio.');
@@ -864,7 +866,12 @@
                 };
 
                 peerConnections[from].onconnectionstatechange = () => {
-                    console.log(`Peer connection state with ${from}: ${peerConnections[from].connectionState}`);
+                    console.log(`Connection state with ${from}: ${peerConnections[from].connectionState}`);
+                    if (peerConnections[from].connectionState === 'failed' || peerConnections[from].connectionState === 'disconnected') {
+                        peerConnections[from].close();
+                        delete peerConnections[from];
+                        console.log(`Cleaned up failed connection with ${from}`);
+                    }
                 };
             }
 
