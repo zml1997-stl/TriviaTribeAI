@@ -61,14 +61,14 @@
             margin-top: 10px; 
             display: none; 
         }
-        /* Voice Chat Styles */
-        .voice-control-btn {
+        /* Push-to-Talk Button Styles */
+        .ptt-control-btn {
             position: fixed;
             bottom: 10px;
             left: 65px;
             width: 35px;
             height: 35px;
-            background-color: #00FF00;
+            background-color: #FF0000; /* Red when muted (default) */
             border: none;
             border-radius: 50%;
             color: #2C1A3B;
@@ -76,20 +76,21 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 8px rgba(0, 255, 0, 0.5);
+            box-shadow: 0 0 8px rgba(255, 0, 0, 0.5);
             z-index: 1000;
             cursor: pointer;
             transition: background-color 0.2s ease;
+            user-select: none; /* Prevent text selection during hold */
         }
-        .voice-control-btn:hover {
-            background-color: #00CC00;
+        .ptt-control-btn:hover {
+            background-color: #CC0000; /* Darker red on hover when muted */
         }
-        .voice-control-btn.muted {
-            background-color: #FF0000;
-            box-shadow: 0 0 8px rgba(255, 0, 0, 0.5);
+        .ptt-control-btn.active {
+            background-color: #00FF00; /* Green when held (transmitting) */
+            box-shadow: 0 0 8px rgba(0, 255, 0, 0.5);
         }
-        .voice-control-btn.muted:hover {
-            background-color: #CC0000;
+        .ptt-control-btn.active:hover {
+            background-color: #00CC00; /* Darker green on hover when active */
         }
         .speaking-indicator {
             position: fixed;
@@ -276,7 +277,7 @@
     </div>
 
     <button id="mute-btn" class="music-control-btn">🔇</button>
-    <button id="voice-mute-btn" class="voice-control-btn">🎤</button>
+    <button id="ptt-btn" class="ptt-control-btn">🎤</button>
     <div id="speaking-indicator" class="speaking-indicator"></div>
     
     <!-- Chat Button and Popup -->
@@ -323,10 +324,8 @@
         let localStream;
         let peerConnections = {};
         let playersInRoom = [];
-        let peerAudioElements = {}; // Store audio elements per peer
-        let audioContext;
-        let analyser;
-        let speakingDetectionInterval;
+        let isPTTPressed = false;
+        let isVoiceInitialized = false;
 
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
@@ -346,14 +345,14 @@
         const chatInput = document.getElementById('chat-input');
         const unreadCountBadge = document.getElementById('unread-count');
         const topicErrorDiv = document.getElementById('topic-error');
-        const voiceMuteBtn = document.getElementById('voice-mute-btn');
+        const pttBtn = document.getElementById('ptt-btn');
         const speakingIndicator = document.getElementById('speaking-indicator');
 
         document.addEventListener('DOMContentLoaded', function() {
             connectToSocket();
             setupEventListeners();
             window.switchToHomeMusic();
-            initializeVoiceChat();
+            // Voice chat initializes on first PTT press
         });
 
         function hideAllSections() {
@@ -658,64 +657,70 @@
                 }
             });
 
-            voiceMuteBtn.addEventListener('click', toggleVoiceMute);
+            // Push-to-Talk Event Listeners
+            pttBtn.addEventListener('mousedown', startTalking);
+            pttBtn.addEventListener('mouseup', stopTalking);
+            pttBtn.addEventListener('mouseleave', stopTalking);
+            pttBtn.addEventListener('touchstart', startTalkingMobile);
+            pttBtn.addEventListener('touchend', stopTalking);
+            pttBtn.addEventListener('touchcancel', stopTalking);
         }
 
         // Voice Chat Functions
         async function initializeVoiceChat() {
+            if (isVoiceInitialized) return;
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                console.log('Microphone access granted');
-                voiceMuteBtn.classList.remove('muted');
-                setupSpeakingDetection();
+                alert('Microphone access granted. Hold the 🎤 button to talk.');
+                localStream.getAudioTracks()[0].enabled = false; // Muted by default
+                isVoiceInitialized = true;
+                updateVoiceChatParticipants(playersInRoom);
             } catch (err) {
                 console.error('Microphone access denied:', err);
-                voiceMuteBtn.classList.add('muted');
                 alert('Microphone access is required for voice chat. Please enable it in your browser settings.');
+                pttBtn.style.backgroundColor = '#808080'; // Grey out if no mic
+                pttBtn.disabled = true;
             }
         }
 
-        function toggleVoiceMute() {
-            if (localStream) {
-                const enabled = localStream.getAudioTracks()[0].enabled;
-                localStream.getAudioTracks()[0].enabled = !enabled;
-                voiceMuteBtn.classList.toggle('muted', !enabled);
-                voiceMuteBtn.textContent = enabled ? '🔇' : '🎤';
+        function startTalking() {
+            if (!isVoiceInitialized) {
+                initializeVoiceChat();
+                return;
+            }
+            if (localStream && !isPTTPressed) {
+                localStream.getAudioTracks()[0].enabled = true;
+                isPTTPressed = true;
+                pttBtn.classList.add('active');
+                alert('You are now talking. Release to mute.');
             }
         }
 
-        function setupSpeakingDetection() {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            analyser = audioContext.createAnalyser();
-            const source = audioContext.createMediaStreamSource(localStream);
-            source.connect(analyser);
-            analyser.fftSize = 512;
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        function startTalkingMobile(event) {
+            event.preventDefault();
+            startTalking();
+        }
 
-            speakingDetectionInterval = setInterval(() => {
-                analyser.getByteFrequencyData(dataArray);
-                const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-                updateSpeakingIndicator(username, average > 20); // Threshold for speaking
-            }, 100);
+        function stopTalking() {
+            if (localStream && isPTTPressed) {
+                localStream.getAudioTracks()[0].enabled = false;
+                isPTTPressed = false;
+                pttBtn.classList.remove('active');
+            }
         }
 
         async function updateVoiceChatParticipants(players) {
+            if (!isVoiceInitialized) return;
             playersInRoom = players.filter(p => p !== username);
             speakingIndicator.innerHTML = players.map(p => `<div class="player" data-username="${p}"><span class="player-emoji">${playerEmojis[p]}</span>${p}</div>`).join('');
-            
-            // Close existing connections not in the new player list
+
             for (let peer in peerConnections) {
                 if (!playersInRoom.includes(peer)) {
                     peerConnections[peer].close();
-                    if (peerAudioElements[peer]) {
-                        peerAudioElements[peer].remove();
-                        delete peerAudioElements[peer];
-                    }
                     delete peerConnections[peer];
                 }
             }
 
-            // Initiate connections to new players
             for (let player of playersInRoom) {
                 if (!peerConnections[player]) {
                     await createPeerConnection(player);
@@ -732,11 +737,9 @@
             };
             peerConnections[peerUsername] = new RTCPeerConnection(config);
 
-            if (localStream) {
-                localStream.getTracks().forEach(track => {
-                    peerConnections[peerUsername].addTrack(track, localStream);
-                });
-            }
+            localStream.getTracks().forEach(track => {
+                peerConnections[peerUsername].addTrack(track, localStream);
+            });
 
             peerConnections[peerUsername].onicecandidate = event => {
                 if (event.candidate) {
@@ -745,24 +748,11 @@
             };
 
             peerConnections[peerUsername].ontrack = event => {
-                console.log(`Received audio track from ${peerUsername}`);
-                if (!peerAudioElements[peerUsername]) {
-                    const audio = document.createElement('audio');
-                    audio.id = `audio-${peerUsername}`;
-                    audio.autoplay = true;
-                    audio.volume = 0.5;
-                    document.body.appendChild(audio); // Append to DOM to ensure playback
-                    peerAudioElements[peerUsername] = audio;
-                }
-                peerAudioElements[peerUsername].srcObject = event.streams[0];
-                peerAudioElements[peerUsername].play().catch(e => console.error('Audio play error:', e));
-            };
-
-            peerConnections[peerUsername].onconnectionstatechange = () => {
-                console.log(`Connection state with ${peerUsername}: ${peerConnections[peerUsername].connectionState}`);
-                if (peerConnections[peerUsername].connectionState === 'failed') {
-                    peerConnections[peerUsername].restartIce();
-                }
+                const audio = new Audio();
+                audio.srcObject = event.streams[0];
+                audio.autoplay = true;
+                audio.volume = 0.5;
+                audio.play().catch(() => alert('Audio playback requires interaction. Please click OK to hear others.'));
             };
 
             const offer = await peerConnections[peerUsername].createOffer();
@@ -780,11 +770,9 @@
                 };
                 peerConnections[from] = new RTCPeerConnection(config);
 
-                if (localStream) {
-                    localStream.getTracks().forEach(track => {
-                        peerConnections[from].addTrack(track, localStream);
-                    });
-                }
+                localStream.getTracks().forEach(track => {
+                    peerConnections[from].addTrack(track, localStream);
+                });
 
                 peerConnections[from].onicecandidate = event => {
                     if (event.candidate) {
@@ -793,24 +781,11 @@
                 };
 
                 peerConnections[from].ontrack = event => {
-                    console.log(`Received audio track from ${from}`);
-                    if (!peerAudioElements[from]) {
-                        const audio = document.createElement('audio');
-                        audio.id = `audio-${from}`;
-                        audio.autoplay = true;
-                        audio.volume = 0.5;
-                        document.body.appendChild(audio);
-                        peerAudioElements[from] = audio;
-                    }
-                    peerAudioElements[from].srcObject = event.streams[0];
-                    peerAudioElements[from].play().catch(e => console.error('Audio play error:', e));
-                };
-
-                peerConnections[from].onconnectionstatechange = () => {
-                    console.log(`Connection state with ${from}: ${peerConnections[from].connectionState}`);
-                    if (peerConnections[from].connectionState === 'failed') {
-                        peerConnections[from].restartIce();
-                    }
+                    const audio = new Audio();
+                    audio.srcObject = event.streams[0];
+                    audio.autoplay = true;
+                    audio.volume = 0.5;
+                    audio.play().catch(() => alert('Audio playback requires interaction. Please click OK to hear others.'));
                 };
             }
 
@@ -821,25 +796,12 @@
         }
 
         async function handleAnswer(from, answer) {
-            if (peerConnections[from]) {
-                await peerConnections[from].setRemoteDescription(new RTCSessionDescription(answer));
-            }
+            await peerConnections[from].setRemoteDescription(new RTCSessionDescription(answer));
         }
 
         async function handleCandidate(from, candidate) {
             if (peerConnections[from]) {
-                try {
-                    await peerConnections[from].addIceCandidate(new RTCIceCandidate(candidate));
-                } catch (e) {
-                    console.error(`Error adding ICE candidate from ${from}:`, e);
-                }
-            }
-        }
-
-        function updateSpeakingIndicator(usernameToUpdate, isSpeaking) {
-            const playerDiv = speakingIndicator.querySelector(`[data-username="${usernameToUpdate}"]`);
-            if (playerDiv) {
-                playerDiv.classList.toggle('speaking', isSpeaking);
+                await peerConnections[from].addIceCandidate(new RTCIceCandidate(candidate));
             }
         }
 
