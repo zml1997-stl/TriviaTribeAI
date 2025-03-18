@@ -61,6 +61,57 @@
             margin-top: 10px; 
             display: none; 
         }
+        /* Voice Chat Styles */
+        .voice-control-btn {
+            position: fixed;
+            bottom: 10px;
+            left: 65px;
+            width: 35px;
+            height: 35px;
+            background-color: #00FF00;
+            border: none;
+            border-radius: 50%;
+            color: #2C1A3B;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 8px rgba(0, 255, 0, 0.5);
+            z-index: 1000;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        .voice-control-btn:hover {
+            background-color: #00CC00;
+        }
+        .voice-control-btn.muted {
+            background-color: #FF0000;
+            box-shadow: 0 0 8px rgba(255, 0, 0, 0.5);
+        }
+        .voice-control-btn.muted:hover {
+            background-color: #CC0000;
+        }
+        .speaking-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: #5A3F73;
+            border-radius: 8px;
+            padding: 0.5rem;
+            box-shadow: 0 0 8px rgba(0, 255, 255, 0.2);
+            z-index: 1001;
+            color: #F5F5F5;
+            font-size: 0.9rem;
+        }
+        .speaking-indicator .player {
+            display: flex;
+            align-items: center;
+            margin: 0.2rem 0;
+        }
+        .speaking-indicator .player.speaking {
+            color: #00FFFF;
+            text-shadow: 0 0 4px rgba(0, 255, 255, 0.5);
+        }
     </style>
 </head>
 <body>
@@ -225,6 +276,8 @@
     </div>
 
     <button id="mute-btn" class="music-control-btn">🔇</button>
+    <button id="voice-mute-btn" class="voice-control-btn">🎤</button>
+    <div id="speaking-indicator" class="speaking-indicator"></div>
     
     <!-- Chat Button and Popup -->
     <button id="chat-btn" class="chat-control-btn">💬 <span id="unread-count" class="badge bg-danger" style="display: none;">0</span></button>
@@ -263,10 +316,13 @@
         let selectedAnswer = null;
         let playerEmojis = {};
         let reconnectAttempts = 0;
-        const maxReconnectAttempts = 10;  // Increased from 5
+        const maxReconnectAttempts = 10;
         let currentTopicId = null;
         let currentTopic = null;
         let currentQuestionId = null;
+        let localStream;
+        let peerConnections = {};
+        let playersInRoom = [];
 
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
@@ -286,11 +342,14 @@
         const chatInput = document.getElementById('chat-input');
         const unreadCountBadge = document.getElementById('unread-count');
         const topicErrorDiv = document.getElementById('topic-error');
+        const voiceMuteBtn = document.getElementById('voice-mute-btn');
+        const speakingIndicator = document.getElementById('speaking-indicator');
 
         document.addEventListener('DOMContentLoaded', function() {
             connectToSocket();
             setupEventListeners();
             window.switchToHomeMusic();
+            initializeVoiceChat();
         });
 
         function hideAllSections() {
@@ -303,7 +362,7 @@
             document.getElementById('waiting-for-topic')?.remove();
             document.getElementById('loading-question')?.remove();
             document.getElementById('game-paused')?.remove();
-            topicErrorDiv.style.display = 'none'; // Hide error message by default
+            topicErrorDiv.style.display = 'none';
         }
 
         function showError(message) {
@@ -311,14 +370,14 @@
             topicErrorDiv.style.display = 'block';
             setTimeout(() => {
                 topicErrorDiv.style.display = 'none';
-            }, 5000); // Hide after 5 seconds
+            }, 5000);
         }
 
         function connectToSocket() {
             socket = io({
                 reconnection: true,
                 reconnectionAttempts: maxReconnectAttempts,
-                reconnectionDelay: 500,  // Reduced from 1000ms for faster retries
+                reconnectionDelay: 500,
                 reconnectionDelayMax: 2000,
                 randomizationFactor: 0.5
             });
@@ -359,10 +418,12 @@
                 hideAllSections();
                 waitingLobby.style.display = 'block';
                 leaveGameContainer.style.display = 'block';
+                updateVoiceChatParticipants(data.players);
             });
 
             socket.on('player_left', function(data) {
                 updatePlayerList(data.players, data.player_emojis);
+                updateVoiceChatParticipants(data.players);
             });
 
             socket.on('player_rejoined', function(data) {
@@ -372,6 +433,7 @@
                 hideAllSections();
                 scoreboard.style.display = 'block';
                 leaveGameContainer.style.display = 'block';
+                updateVoiceChatParticipants(data.players);
                 if (data.status === 'in_progress') {
                     if (data.current_player === username) {
                         topicSelection.style.display = 'block';
@@ -468,7 +530,6 @@
 
             socket.on('error', function(data) {
                 console.error('Server error:', data.message);
-                // Handle specific error for topic selection failure
                 if (data.message.includes("Could not generate a unique question") && topicSelection.style.display === 'none') {
                     hideAllSections();
                     scoreboard.style.display = 'block';
@@ -479,6 +540,25 @@
                     window.location.href = '/';
                 } else {
                     alert(`Error: ${data.message}`);
+                }
+            });
+
+            // WebRTC Signaling Handlers
+            socket.on('voice_offer', async function(data) {
+                if (data.from !== username) {
+                    await handleOffer(data.from, data.offer);
+                }
+            });
+
+            socket.on('voice_answer', async function(data) {
+                if (data.from !== username) {
+                    await handleAnswer(data.from, data.answer);
+                }
+            });
+
+            socket.on('voice_candidate', async function(data) {
+                if (data.from !== username) {
+                    await handleCandidate(data.from, data.candidate);
                 }
             });
         }
@@ -573,6 +653,137 @@
                     chatInput.value = '';
                 }
             });
+
+            voiceMuteBtn.addEventListener('click', toggleVoiceMute);
+        }
+
+        // Voice Chat Functions
+        async function initializeVoiceChat() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                console.log('Microphone access granted');
+                voiceMuteBtn.classList.remove('muted');
+            } catch (err) {
+                console.error('Microphone access denied:', err);
+                voiceMuteBtn.classList.add('muted');
+                alert('Microphone access is required for voice chat. Please enable it in your browser settings.');
+            }
+        }
+
+        function toggleVoiceMute() {
+            if (localStream) {
+                const enabled = localStream.getAudioTracks()[0].enabled;
+                localStream.getAudioTracks()[0].enabled = !enabled;
+                voiceMuteBtn.classList.toggle('muted', !enabled);
+                voiceMuteBtn.textContent = enabled ? '🔇' : '🎤';
+            }
+        }
+
+        async function updateVoiceChatParticipants(players) {
+            playersInRoom = players.filter(p => p !== username);
+            speakingIndicator.innerHTML = players.map(p => `<div class="player" data-username="${p}"><span class="player-emoji">${playerEmojis[p]}</span>${p}</div>`).join('');
+            
+            // Close existing connections not in the new player list
+            for (let peer in peerConnections) {
+                if (!playersInRoom.includes(peer)) {
+                    peerConnections[peer].close();
+                    delete peerConnections[peer];
+                }
+            }
+
+            // Initiate connections to new players
+            for (let player of playersInRoom) {
+                if (!peerConnections[player]) {
+                    await createPeerConnection(player);
+                }
+            }
+        }
+
+        async function createPeerConnection(peerUsername) {
+            const config = {
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+            };
+            peerConnections[peerUsername] = new RTCPeerConnection(config);
+
+            localStream.getTracks().forEach(track => {
+                peerConnections[peerUsername].addTrack(track, localStream);
+            });
+
+            peerConnections[peerUsername].onicecandidate = event => {
+                if (event.candidate) {
+                    socket.emit('voice_candidate', { game_id: gameId, from: username, to: peerUsername, candidate: event.candidate });
+                }
+            };
+
+            peerConnections[peerUsername].ontrack = event => {
+                const audio = new Audio();
+                audio.srcObject = event.streams[0];
+                audio.autoplay = true;
+                audio.volume = 0.5; // Default volume
+            };
+
+            peerConnections[peerUsername].onaudiolevel = event => {
+                const level = event.audioLevel || 0;
+                updateSpeakingIndicator(peerUsername, level > 0.1); // Threshold for speaking detection
+            };
+
+            // Create and send offer
+            const offer = await peerConnections[peerUsername].createOffer();
+            await peerConnections[peerUsername].setLocalDescription(offer);
+            socket.emit('voice_offer', { game_id: gameId, from: username, to: peerUsername, offer: offer });
+        }
+
+        async function handleOffer(from, offer) {
+            if (!peerConnections[from]) {
+                const config = {
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                };
+                peerConnections[from] = new RTCPeerConnection(config);
+
+                localStream.getTracks().forEach(track => {
+                    peerConnections[from].addTrack(track, localStream);
+                });
+
+                peerConnections[from].onicecandidate = event => {
+                    if (event.candidate) {
+                        socket.emit('voice_candidate', { game_id: gameId, from: username, to: from, candidate: event.candidate });
+                    }
+                };
+
+                peerConnections[from].ontrack = event => {
+                    const audio = new Audio();
+                    audio.srcObject = event.streams[0];
+                    audio.autoplay = true;
+                    audio.volume = 0.5;
+                };
+
+                peerConnections[from].onaudiolevel = event => {
+                    const level = event.audioLevel || 0;
+                    updateSpeakingIndicator(from, level > 0.1);
+                };
+            }
+
+            await peerConnections[from].setRemoteDescription(new RTCSessionDescription(offer));
+            const answer = await peerConnections[from].createAnswer();
+            await peerConnections[from].setLocalDescription(answer);
+            socket.emit('voice_answer', { game_id: gameId, from: username, to: from, answer: answer });
+        }
+
+        async function handleAnswer(from, answer) {
+            await peerConnections[from].setRemoteDescription(new RTCSessionDescription(answer));
+        }
+
+        async function handleCandidate(from, candidate) {
+            if (peerConnections[from]) {
+                await peerConnections[from].addIceCandidate(new RTCIceCandidate(candidate));
+            }
+        }
+
+        function updateSpeakingIndicator(username, isSpeaking) {
+            const playerDiv = speakingIndicator.querySelector(`[data-username="${username}"]`);
+            if (playerDiv) {
+                playerDiv.classList.toggle('speaking', isSpeaking);
+            }
         }
 
         function updatePlayerList(players, emojis) {
