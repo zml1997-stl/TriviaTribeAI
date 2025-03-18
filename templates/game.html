@@ -307,7 +307,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='music.js') }}"></script>
-    <script>
+        <script>
         const gameId = "{{ game_id }}";
         const username = "{{ username }}";
         const isHost = {{ 'true' if is_host else 'false' }};
@@ -327,7 +327,8 @@
         let playersInRoom = [];
         let isPTTPressed = false;
         let isVoiceInitialized = false;
-
+        let isAudioUnlocked = false;
+    
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
         const questionDisplay = document.getElementById('question-display');
@@ -348,14 +349,25 @@
         const topicErrorDiv = document.getElementById('topic-error');
         const pttBtn = document.getElementById('ptt-btn');
         const speakingIndicator = document.getElementById('speaking-indicator');
-
+    
+        // Add Unmute Button dynamically
+        const unmuteBtn = document.createElement('button');
+        unmuteBtn.id = 'unmute-btn';
+        unmuteBtn.className = 'btn btn-warning';
+        unmuteBtn.style.position = 'fixed';
+        unmuteBtn.style.bottom = '10px';
+        unmuteBtn.style.left = '110px';
+        unmuteBtn.style.zIndex = '1000';
+        unmuteBtn.textContent = '🔊 Unmute Voice Chat';
+        document.body.appendChild(unmuteBtn);
+    
         document.addEventListener('DOMContentLoaded', function() {
             connectToSocket();
             setupEventListeners();
             window.switchToHomeMusic();
             initializeVoiceChat();
         });
-
+    
         function showToast(message) {
             const toast = document.createElement('div');
             toast.style.position = 'fixed';
@@ -371,7 +383,7 @@
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
         }
-
+    
         function hideAllSections() {
             waitingLobby.style.display = 'none';
             topicSelection.style.display = 'none';
@@ -384,13 +396,13 @@
             document.getElementById('game-paused')?.remove();
             topicErrorDiv.style.display = 'none';
         }
-
+    
         function showError(message) {
             topicErrorDiv.textContent = message;
             topicErrorDiv.style.display = 'block';
             setTimeout(() => topicErrorDiv.style.display = 'none', 5000);
         }
-
+    
         function connectToSocket() {
             socket = io({
                 reconnection: true,
@@ -399,35 +411,34 @@
                 reconnectionDelayMax: 2000,
                 randomizationFactor: 0.5
             });
-
+    
             socket.on('connect', function() {
-                console.log('Connected to server');
+                showToast('Connected to server');
                 reconnectAttempts = 0;
                 connectionStatus.textContent = 'Connected';
                 connectionStatus.className = 'badge bg-success ms-2';
                 socket.emit('join_game_room', { game_id: gameId, username: username });
             });
-
+    
             socket.on('connect_error', function(error) {
-                console.error('Connection error:', error);
+                showToast('Connection error');
                 connectionStatus.textContent = 'Connection Failed';
                 connectionStatus.className = 'badge bg-danger ms-2';
             });
-
+    
             socket.on('reconnect', function(attempt) {
-                console.log(`Reconnected after ${attempt} attempts`);
+                showToast(`Reconnected after ${attempt} attempts`);
                 connectionStatus.textContent = 'Connected';
                 connectionStatus.className = 'badge bg-success ms-2';
                 socket.emit('join_game_room', { game_id: gameId, username: username });
             });
-
+    
             socket.on('reconnect_failed', function() {
-                console.error('Reconnection failed');
+                showToast('Lost connection. Please refresh.');
                 connectionStatus.textContent = 'Disconnected';
                 connectionStatus.className = 'badge bg-danger ms-2';
-                showToast('Lost connection to server. Please refresh.');
             });
-
+    
             socket.on('player_joined', function(data) {
                 updatePlayerList(data.players, data.player_emojis);
                 hideAllSections();
@@ -435,14 +446,14 @@
                 leaveGameContainer.style.display = 'block';
                 updateVoiceChatParticipants(data.players);
             });
-
+    
             socket.on('player_left', function(data) {
                 updatePlayerList(data.players, data.player_emojis);
                 updateVoiceChatParticipants(data.players);
             });
-
+    
             socket.on('player_rejoined', function(data) {
-                console.log(`${data.username} rejoined the game`);
+                showToast(`${data.username} rejoined`);
                 updatePlayerList(data.players, data.player_emojis);
                 updateScoreboard(data.scores, data.player_emojis);
                 hideAllSections();
@@ -467,28 +478,26 @@
                     waitingLobby.style.display = 'block';
                 }
             });
-
+    
             socket.on('game_started', function(data) {
-                console.log('Game started received:', data);
                 clearTimeout(startGameTimeout);
                 startGameBtn.disabled = false;
                 startGameLoading.style.display = 'none';
                 startGame(data);
             });
-
+    
             socket.on('question_ready', function(data) {
                 showQuestion(data);
             });
-
+    
             socket.on('player_answered', function(data) {
                 playerAnswered(data.username);
             });
-
+    
             socket.on('round_results', function(data) {
-                console.log('Round results:', data);
                 showResults(data);
             });
-
+    
             socket.on('request_feedback', function(data) {
                 currentTopicId = data.topic_id;
                 feedbackForm.style.display = 'block';
@@ -499,17 +508,17 @@
                     btn.classList.remove('active');
                 });
             });
-
+    
             socket.on('game_ended', function(data) {
                 endGame(data);
             });
-
+    
             socket.on('game_reset', function(data) {
                 resetGame(data);
             });
-
+    
             socket.on('turn_skipped', function(data) {
-                console.log(`${data.disconnected_player}'s turn skipped, next: ${data.next_player}`);
+                showToast(`${data.disconnected_player}'s turn skipped`);
                 hideAllSections();
                 scoreboard.style.display = 'block';
                 if (data.next_player === username) {
@@ -519,9 +528,9 @@
                     showWaitingForTopic(data.next_player);
                 }
             });
-
+    
             socket.on('game_paused', function(data) {
-                console.log('Game paused:', data.message);
+                showToast('Game paused');
                 hideAllSections();
                 const pausedDiv = document.createElement('div');
                 pausedDiv.id = 'game-paused';
@@ -530,21 +539,21 @@
                 document.querySelector('.card-body').appendChild(pausedDiv);
                 scoreboard.style.display = 'block';
             });
-
+    
             socket.on('player_top_topics', function(data) {
                 document.getElementById('topic-input').placeholder = data.placeholder;
             });
-
+    
             socket.on('chat_message', function(data) {
                 addChatMessage(data.username, data.message);
             });
-
+    
             socket.on('update_unread_count', function(data) {
                 updateUnreadCount(data.count);
             });
-
+    
             socket.on('error', function(data) {
-                console.error('Server error:', data.message);
+                showToast(`Error: ${data.message}`);
                 if (data.message.includes("Could not generate a unique question") && topicSelection.style.display === 'none') {
                     hideAllSections();
                     scoreboard.style.display = 'block';
@@ -553,36 +562,37 @@
                     document.getElementById('topic-input').focus();
                 } else if (data.message.includes('Game not found')) {
                     window.location.href = '/';
-                } else {
-                    showToast(`Error: ${data.message}`);
                 }
             });
-
+    
             socket.on('voice_offer', async function(data) {
                 if (data.from !== username) {
+                    showToast(`Offer from ${data.from}`);
                     await handleOffer(data.from, data.offer);
                 }
             });
-
+    
             socket.on('voice_answer', async function(data) {
                 if (data.from !== username) {
+                    showToast(`Answer from ${data.from}`);
                     await handleAnswer(data.from, data.answer);
                 }
             });
-
+    
             socket.on('voice_candidate', async function(data) {
                 if (data.from !== username) {
+                    showToast(`Candidate from ${data.from}`);
                     await handleCandidate(data.from, data.candidate);
                 }
             });
-
+    
             socket.on('speaking_status', function(data) {
                 updateSpeakingIndicator(data.username, data.speaking);
             });
         }
-
+    
         let startGameTimeout;
-
+    
         function setupEventListeners() {
             if (startGameBtn) {
                 startGameBtn.addEventListener('click', function() {
@@ -638,7 +648,7 @@
                 window.location.href = '/';
             });
             document.getElementById('mute-btn').addEventListener('click', window.muteToggle);
-
+    
             document.querySelectorAll('.feedback-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const rating = this.getAttribute('data-rating') === 'true';
@@ -653,14 +663,14 @@
                     document.querySelectorAll('.feedback-btn').forEach(b => b.disabled = true);
                 });
             });
-
+    
             chatBtn.addEventListener('click', function() {
                 chatBox.classList.toggle('active');
                 if (chatBox.classList.contains('active')) {
                     socket.emit('reset_unread_count', { game_id: gameId, username: username });
                 }
             });
-
+    
             chatInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter' && chatInput.value.trim()) {
                     socket.emit('send_chat_message', { 
@@ -671,39 +681,64 @@
                     chatInput.value = '';
                 }
             });
-
+    
             pttBtn.addEventListener('mousedown', startTalking);
             pttBtn.addEventListener('mouseup', stopTalking);
             pttBtn.addEventListener('mouseleave', stopTalking);
             pttBtn.addEventListener('touchstart', startTalkingMobile);
             pttBtn.addEventListener('touchend', stopTalking);
             pttBtn.addEventListener('touchcancel', stopTalking);
+    
+            unmuteBtn.addEventListener('click', unlockAudio);
         }
-
+    
+        async function unlockAudio() {
+            if (isAudioUnlocked) return;
+            showToast('Unlocking audio...');
+            const dummyAudio = new Audio();
+            dummyAudio.src = '/static/select.mp3'; // Use an existing sound file
+            dummyAudio.play()
+                .then(() => {
+                    showToast('Audio unlocked!');
+                    isAudioUnlocked = true;
+                    unmuteBtn.style.display = 'none';
+                    playersInRoom.forEach(player => {
+                        const audio = document.getElementById(`voice-${player}`);
+                        if (audio && audio.srcObject) {
+                            audio.play()
+                                .then(() => showToast(`Playing ${player}'s audio`))
+                                .catch(() => showToast(`Failed to play ${player}'s audio`));
+                        }
+                    });
+                })
+                .catch(err => showToast('Audio unlock failed. Try again.'));
+        }
+    
         async function initializeVoiceChat() {
             if (isVoiceInitialized) return;
-            console.log('Initializing voice chat');
+            showToast('Initializing voice chat');
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                console.log('Microphone access granted');
-                showToast('Microphone access granted. Hold 🎤 to talk.');
+                showToast('Mic access granted. Click 🔊 then hold 🎤 to talk.');
                 localStream.getAudioTracks()[0].enabled = false; // Muted by default
                 isVoiceInitialized = true;
                 if (playersInRoom.length > 0) {
                     updateVoiceChatParticipants(playersInRoom);
                 }
             } catch (err) {
-                console.error('Microphone access denied:', err);
-                showToast('Microphone access denied. Voice chat disabled.');
+                showToast('Mic access denied. Voice chat disabled.');
                 pttBtn.style.backgroundColor = '#808080';
                 pttBtn.disabled = true;
             }
         }
-
+    
         function startTalking() {
-            console.log('Mic button pressed');
             if (!isVoiceInitialized) {
                 initializeVoiceChat();
+                return;
+            }
+            if (!isAudioUnlocked) {
+                showToast('Click 🔊 Unmute Voice Chat first!');
                 return;
             }
             if (localStream && !isPTTPressed) {
@@ -712,21 +747,22 @@
                 pttBtn.classList.add('active');
                 showToast('Talking... Release to mute.');
                 socket.emit('speaking_status', { game_id: gameId, username: username, speaking: true });
-                // Ensure audio context is active after user interaction
                 playersInRoom.forEach(player => {
                     const audio = document.getElementById(`voice-${player}`);
                     if (audio && audio.srcObject) {
-                        audio.play().catch(err => console.error(`Failed to play ${player}'s audio:`, err));
+                        audio.play()
+                            .then(() => showToast(`Playing ${player}'s audio`))
+                            .catch(() => showToast(`Failed to play ${player}'s audio`));
                     }
                 });
             }
         }
-
+    
         function startTalkingMobile(event) {
             event.preventDefault();
             startTalking();
         }
-
+    
         function stopTalking() {
             if (localStream && isPTTPressed) {
                 localStream.getAudioTracks()[0].enabled = false;
@@ -735,9 +771,9 @@
                 socket.emit('speaking_status', { game_id: gameId, username: username, speaking: false });
             }
         }
-
+    
         async function updateVoiceChatParticipants(players) {
-            console.log('Updating voice chat participants:', players);
+            showToast(`Updating players: ${players.join(', ')}`);
             playersInRoom = players.filter(p => p !== username);
             speakingIndicator.innerHTML = playersInRoom.map(p => `
                 <div class="player" data-username="${p}">
@@ -745,15 +781,15 @@
                     <audio id="voice-${p}" autoplay></audio>
                 </div>
             `).join('');
-
+    
             for (let peer in peerConnections) {
                 if (!playersInRoom.includes(peer)) {
                     peerConnections[peer].close();
                     delete peerConnections[peer];
-                    console.log(`Closed peer connection with ${peer}`);
+                    showToast(`Closed connection with ${peer}`);
                 }
             }
-
+    
             if (isVoiceInitialized) {
                 for (let player of playersInRoom) {
                     if (!peerConnections[player]) {
@@ -762,16 +798,16 @@
                 }
             }
         }
-
+    
         function updateSpeakingIndicator(player, isSpeaking) {
             const playerEl = speakingIndicator.querySelector(`.player[data-username="${player}"]`);
             if (playerEl) {
                 playerEl.classList.toggle('speaking', isSpeaking);
             }
         }
-
+    
         async function createPeerConnection(peerUsername) {
-            console.log(`Creating peer connection for ${peerUsername}`);
+            showToast(`Connecting to ${peerUsername}`);
             const config = {
                 iceServers: [
                     { urls: 'stun:stun.relay.metered.ca:80' },
@@ -779,62 +815,63 @@
                     { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' },
                     { urls: 'turn:global.relay.metered.ca:443', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' },
                     { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' }
-                ]
+                ],
+                iceTransportPolicy: 'relay' // Force TURN
             };
             peerConnections[peerUsername] = new RTCPeerConnection(config);
-
+    
             if (localStream) {
                 localStream.getTracks().forEach(track => {
                     peerConnections[peerUsername].addTrack(track, localStream);
-                    console.log(`Added track to peer connection for ${peerUsername}`);
+                    showToast(`Added mic to ${peerUsername}`);
                 });
             }
-
+    
             peerConnections[peerUsername].onicecandidate = event => {
                 if (event.candidate) {
-                    console.log(`Sending ICE candidate to ${peerUsername}:`, event.candidate);
+                    showToast(`Sending candidate to ${peerUsername}`);
                     socket.emit('voice_candidate', { game_id: gameId, from: username, to: peerUsername, candidate: event.candidate });
                 }
             };
-
+    
             peerConnections[peerUsername].ontrack = event => {
-                console.log(`Received remote stream from ${peerUsername}`);
+                showToast(`Stream received from ${peerUsername}`);
                 const audio = document.getElementById(`voice-${peerUsername}`);
                 if (audio) {
                     audio.srcObject = event.streams[0];
                     audio.volume = 0.5;
-                    audio.play()
-                        .then(() => console.log(`Playing audio from ${peerUsername}`))
-                        .catch(err => {
-                            console.error(`Audio playback failed for ${peerUsername}:`, err);
-                            showToast('Click the 🎤 button to enable voice chat audio.');
-                        });
+                    if (isAudioUnlocked) {
+                        audio.play()
+                            .then(() => showToast(`Playing ${peerUsername}'s audio`))
+                            .catch(() => showToast(`Failed to play ${peerUsername}'s audio`));
+                    } else {
+                        showToast(`Stream ready for ${peerUsername}. Click 🔊 to play.`);
+                    }
                 } else {
-                    console.error(`No audio element found for ${peerUsername}`);
+                    showToast(`No audio element for ${peerUsername}`);
                 }
             };
-
+    
             peerConnections[peerUsername].onconnectionstatechange = () => {
-                console.log(`Connection state with ${peerUsername}: ${peerConnections[peerUsername].connectionState}`);
-                if (peerConnections[peerUsername].connectionState === 'failed' || peerConnections[peerUsername].connectionState === 'disconnected') {
+                const state = peerConnections[peerUsername].connectionState;
+                showToast(`Connection with ${peerUsername}: ${state}`);
+                if (state === 'failed' || state === 'disconnected') {
                     peerConnections[peerUsername].close();
                     delete peerConnections[peerUsername];
-                    console.log(`Cleaned up failed connection with ${peerUsername}`);
+                    showToast(`Connection failed with ${peerUsername}`);
                 }
             };
-
+    
             try {
                 const offer = await peerConnections[peerUsername].createOffer();
                 await peerConnections[peerUsername].setLocalDescription(offer);
-                console.log(`Sending offer to ${peerUsername}:`, offer);
                 socket.emit('voice_offer', { game_id: gameId, from: username, to: peerUsername, offer: offer });
             } catch (err) {
-                console.error(`Error creating offer for ${peerUsername}:`, err);
+                showToast(`Error connecting to ${peerUsername}`);
             }
         }
-
+    
         async function handleOffer(from, offer) {
-            console.log(`Received offer from ${from}`);
             if (!peerConnections[from]) {
                 const config = {
                     iceServers: [
@@ -843,82 +880,84 @@
                         { urls: 'turn:global.relay.metered.ca:80?transport=tcp', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' },
                         { urls: 'turn:global.relay.metered.ca:443', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' },
                         { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' }
-                    ]
+                    ],
+                    iceTransportPolicy: 'relay' // Force TURN
                 };
                 peerConnections[from] = new RTCPeerConnection(config);
-
+    
                 if (localStream) {
                     localStream.getTracks().forEach(track => {
                         peerConnections[from].addTrack(track, localStream);
-                        console.log(`Added track to peer connection for ${from}`);
+                        showToast(`Added mic to ${from}`);
                     });
                 }
-
+    
                 peerConnections[from].onicecandidate = event => {
                     if (event.candidate) {
-                        console.log(`Sending ICE candidate to ${from}:`, event.candidate);
+                        showToast(`Sending candidate to ${from}`);
                         socket.emit('voice_candidate', { game_id: gameId, from: username, to: from, candidate: event.candidate });
                     }
                 };
-
+    
                 peerConnections[from].ontrack = event => {
-                    console.log(`Received remote stream from ${from}`);
+                    showToast(`Stream received from ${from}`);
                     const audio = document.getElementById(`voice-${from}`);
                     if (audio) {
                         audio.srcObject = event.streams[0];
                         audio.volume = 0.5;
-                        audio.play()
-                            .then(() => console.log(`Playing audio from ${from}`))
-                            .catch(err => {
-                                console.error(`Audio playback failed for ${from}:`, err);
-                                showToast('Click the 🎤 button to enable voice chat audio.');
-                            });
+                        if (isAudioUnlocked) {
+                            audio.play()
+                                .then(() => showToast(`Playing ${from}'s audio`))
+                                .catch(() => showToast(`Failed to play ${from}'s audio`));
+                        } else {
+                            showToast(`Stream ready for ${from}. Click 🔊 to play.`);
+                        }
                     } else {
-                        console.error(`No audio element found for ${from}`);
+                        showToast(`No audio element for ${from}`);
                     }
                 };
-
+    
                 peerConnections[from].onconnectionstatechange = () => {
-                    console.log(`Connection state with ${from}: ${peerConnections[from].connectionState}`);
-                    if (peerConnections[from].connectionState === 'failed' || peerConnections[from].connectionState === 'disconnected') {
+                    const state = peerConnections[from].connectionState;
+                    showToast(`Connection with ${from}: ${state}`);
+                    if (state === 'failed' || state === 'disconnected') {
                         peerConnections[from].close();
                         delete peerConnections[from];
-                        console.log(`Cleaned up failed connection with ${from}`);
+                        showToast(`Connection failed with ${from}`);
                     }
                 };
             }
-
+    
             try {
                 await peerConnections[from].setRemoteDescription(new RTCSessionDescription(offer));
                 const answer = await peerConnections[from].createAnswer();
                 await peerConnections[from].setLocalDescription(answer);
-                console.log(`Sending answer to ${from}:`, answer);
                 socket.emit('voice_answer', { game_id: gameId, from: username, to: from, answer: answer });
             } catch (err) {
-                console.error(`Error handling offer from ${from}:`, err);
+                showToast(`Error handling offer from ${from}`);
             }
         }
-
+    
         async function handleAnswer(from, answer) {
             try {
                 await peerConnections[from].setRemoteDescription(new RTCSessionDescription(answer));
-                console.log(`Answer set for ${from}`);
+                showToast(`Answer set for ${from}`);
             } catch (err) {
-                console.error(`Error handling answer from ${from}:`, err);
+                showToast(`Error handling answer from ${from}`);
             }
         }
-
+    
         async function handleCandidate(from, candidate) {
             try {
                 if (peerConnections[from]) {
                     await peerConnections[from].addIceCandidate(new RTCIceCandidate(candidate));
-                    console.log(`Added ICE candidate from ${from}`);
+                    showToast(`Added candidate from ${from}`);
                 }
             } catch (err) {
-                console.error(`Error handling candidate from ${from}:`, err);
+                showToast(`Error adding candidate from ${from}`);
             }
         }
-
+    
         function updatePlayerList(players, emojis) {
             playerEmojis = emojis;
             const playerList = document.getElementById('player-list');
@@ -934,7 +973,7 @@
                 playerList.appendChild(li);
             });
         }
-
+    
         function startGame(data) {
             hideAllSections();
             scoreboard.style.display = 'block';
@@ -948,7 +987,7 @@
                 showWaitingForTopic(data.current_player);
             }
         }
-
+    
         function showWaitingForTopic(player) {
             hideAllSections();
             scoreboard.style.display = 'block';
@@ -958,7 +997,7 @@
             waitingDiv.innerHTML = `<h3>Waiting for ${player} to select a topic...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
             document.querySelector('.card-body').appendChild(waitingDiv);
         }
-
+    
         function showLoadingQuestion() {
             hideAllSections();
             scoreboard.style.display = 'block';
@@ -968,7 +1007,7 @@
             loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
             document.querySelector('.card-body').appendChild(loadingDiv);
         }
-
+    
         function showQuestion(data) {
             hideAllSections();
             questionDisplay.style.display = 'block';
@@ -993,7 +1032,7 @@
             document.getElementById('answer-progress').style.width = '0%';
             startTimer();
         }
-
+    
         function startTimer() {
             timeLeft = 30;
             timerProgress.style.width = '100%';
@@ -1009,7 +1048,7 @@
                 }
             }, 1000);
         }
-
+    
         function playerAnswered(playerName) {
             const playerCount = document.getElementById('player-list').childElementCount;
             if (playerCount > 1) {
@@ -1026,7 +1065,7 @@
                 document.getElementById('answer-progress').style.width = `${progress}%`;
             }
         }
-
+    
         function showResults(data) {
             clearInterval(timerInterval);
             hideAllSections();
@@ -1057,7 +1096,7 @@
             updateScoreboard(data.scores, data.player_emojis);
             startNextRoundCountdown(data.next_player);
         }
-
+    
         function startNextRoundCountdown(nextPlayer) {
             const progressBar = document.getElementById('next-round-progress');
             progressBar.style.width = '0%';
@@ -1076,13 +1115,13 @@
                 }
             }, 10000);
         }
-
+    
         function endGame(data) {
             clearInterval(timerInterval);
             hideAllSections();
             window.location.href = `/final_scoreboard/${gameId}`;
         }
-
+    
         function resetGame(data) {
             clearInterval(timerInterval);
             hideAllSections();
@@ -1095,7 +1134,7 @@
             updatePlayerList(data.players, data.player_emojis);
             updateScoreboard(data.scores, data.player_emojis);
         }
-
+    
         function updateScoreboard(scores, emojis) {
             playerEmojis = emojis;
             const scoresTableBody = document.getElementById('scores-table-body');
@@ -1108,17 +1147,17 @@
                 scoresTableBody.appendChild(tr);
             });
         }
-
+    
         function selectAnswer(answer) {
             selectedAnswer = answer;
             document.querySelectorAll('.list-group-item').forEach(button => button.classList.remove('active'));
             document.getElementById(`option-${answer.toLowerCase()}`).classList.add('active');
         }
-
+    
         function disableAnswerButtons() {
             document.querySelectorAll('.list-group-item').forEach(button => button.disabled = true);
         }
-
+    
         function addChatMessage(sender, message) {
             const messageDiv = document.createElement('div');
             messageDiv.className = 'chat-message';
@@ -1126,7 +1165,7 @@
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
-
+    
         function updateUnreadCount(count) {
             unreadCountBadge.textContent = count;
             unreadCountBadge.style.display = count > 0 ? 'inline' : 'none';
