@@ -307,7 +307,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='music.js') }}"></script>
-        <script>
+    <script>
         const gameId = "{{ game_id }}";
         const username = "{{ username }}";
         const isHost = {{ 'true' if is_host else 'false' }};
@@ -328,7 +328,7 @@
         let isPTTPressed = false;
         let isVoiceInitialized = false;
         let isAudioUnlocked = false;
-    
+
         const waitingLobby = document.getElementById('waiting-lobby');
         const topicSelection = document.getElementById('topic-selection');
         const questionDisplay = document.getElementById('question-display');
@@ -349,8 +349,7 @@
         const topicErrorDiv = document.getElementById('topic-error');
         const pttBtn = document.getElementById('ptt-btn');
         const speakingIndicator = document.getElementById('speaking-indicator');
-    
-        // Add Unmute Button dynamically
+
         const unmuteBtn = document.createElement('button');
         unmuteBtn.id = 'unmute-btn';
         unmuteBtn.className = 'btn btn-warning';
@@ -360,14 +359,14 @@
         unmuteBtn.style.zIndex = '1000';
         unmuteBtn.textContent = '🔊 Unmute Voice Chat';
         document.body.appendChild(unmuteBtn);
-    
+
         document.addEventListener('DOMContentLoaded', function() {
             connectToSocket();
             setupEventListeners();
             window.switchToHomeMusic();
             initializeVoiceChat();
         });
-    
+
         function showToast(message) {
             const toast = document.createElement('div');
             toast.style.position = 'fixed';
@@ -383,7 +382,7 @@
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 3000);
         }
-    
+
         function hideAllSections() {
             waitingLobby.style.display = 'none';
             topicSelection.style.display = 'none';
@@ -396,13 +395,13 @@
             document.getElementById('game-paused')?.remove();
             topicErrorDiv.style.display = 'none';
         }
-    
+
         function showError(message) {
             topicErrorDiv.textContent = message;
             topicErrorDiv.style.display = 'block';
             setTimeout(() => topicErrorDiv.style.display = 'none', 5000);
         }
-    
+
         function connectToSocket() {
             socket = io({
                 reconnection: true,
@@ -411,7 +410,7 @@
                 reconnectionDelayMax: 2000,
                 randomizationFactor: 0.5
             });
-    
+
             socket.on('connect', function() {
                 showToast('Connected to server');
                 reconnectAttempts = 0;
@@ -419,26 +418,26 @@
                 connectionStatus.className = 'badge bg-success ms-2';
                 socket.emit('join_game_room', { game_id: gameId, username: username });
             });
-    
+
             socket.on('connect_error', function(error) {
                 showToast('Connection error');
                 connectionStatus.textContent = 'Connection Failed';
                 connectionStatus.className = 'badge bg-danger ms-2';
             });
-    
+
             socket.on('reconnect', function(attempt) {
                 showToast(`Reconnected after ${attempt} attempts`);
                 connectionStatus.textContent = 'Connected';
                 connectionStatus.className = 'badge bg-success ms-2';
                 socket.emit('join_game_room', { game_id: gameId, username: username });
             });
-    
+
             socket.on('reconnect_failed', function() {
                 showToast('Lost connection. Please refresh.');
                 connectionStatus.textContent = 'Disconnected';
                 connectionStatus.className = 'badge bg-danger ms-2';
             });
-    
+
             socket.on('player_joined', function(data) {
                 updatePlayerList(data.players, data.player_emojis);
                 hideAllSections();
@@ -446,12 +445,12 @@
                 leaveGameContainer.style.display = 'block';
                 updateVoiceChatParticipants(data.players);
             });
-    
+
             socket.on('player_left', function(data) {
                 updatePlayerList(data.players, data.player_emojis);
                 updateVoiceChatParticipants(data.players);
             });
-    
+
             socket.on('player_rejoined', function(data) {
                 showToast(`${data.username} rejoined`);
                 updatePlayerList(data.players, data.player_emojis);
@@ -478,26 +477,26 @@
                     waitingLobby.style.display = 'block';
                 }
             });
-    
+
             socket.on('game_started', function(data) {
                 clearTimeout(startGameTimeout);
                 startGameBtn.disabled = false;
                 startGameLoading.style.display = 'none';
                 startGame(data);
             });
-    
+
             socket.on('question_ready', function(data) {
                 showQuestion(data);
             });
-    
+
             socket.on('player_answered', function(data) {
                 playerAnswered(data.username);
             });
-    
+
             socket.on('round_results', function(data) {
                 showResults(data);
             });
-    
+
             socket.on('request_feedback', function(data) {
                 currentTopicId = data.topic_id;
                 feedbackForm.style.display = 'block';
@@ -508,15 +507,15 @@
                     btn.classList.remove('active');
                 });
             });
-    
+
             socket.on('game_ended', function(data) {
                 endGame(data);
             });
-    
+
             socket.on('game_reset', function(data) {
                 resetGame(data);
             });
-    
+
             socket.on('turn_skipped', function(data) {
                 showToast(`${data.disconnected_player}'s turn skipped`);
                 hideAllSections();
@@ -528,7 +527,7 @@
                     showWaitingForTopic(data.next_player);
                 }
             });
-    
+
             socket.on('game_paused', function(data) {
                 showToast('Game paused');
                 hideAllSections();
@@ -539,19 +538,19 @@
                 document.querySelector('.card-body').appendChild(pausedDiv);
                 scoreboard.style.display = 'block';
             });
-    
+
             socket.on('player_top_topics', function(data) {
                 document.getElementById('topic-input').placeholder = data.placeholder;
             });
-    
+
             socket.on('chat_message', function(data) {
                 addChatMessage(data.username, data.message);
             });
-    
+
             socket.on('update_unread_count', function(data) {
                 updateUnreadCount(data.count);
             });
-    
+
             socket.on('error', function(data) {
                 showToast(`Error: ${data.message}`);
                 if (data.message.includes("Could not generate a unique question") && topicSelection.style.display === 'none') {
@@ -564,35 +563,35 @@
                     window.location.href = '/';
                 }
             });
-    
+
             socket.on('voice_offer', async function(data) {
                 if (data.from !== username) {
                     showToast(`Offer from ${data.from}`);
                     await handleOffer(data.from, data.offer);
                 }
             });
-    
+
             socket.on('voice_answer', async function(data) {
                 if (data.from !== username) {
                     showToast(`Answer from ${data.from}`);
                     await handleAnswer(data.from, data.answer);
                 }
             });
-    
+
             socket.on('voice_candidate', async function(data) {
                 if (data.from !== username) {
                     showToast(`Candidate from ${data.from}`);
                     await handleCandidate(data.from, data.candidate);
                 }
             });
-    
+
             socket.on('speaking_status', function(data) {
                 updateSpeakingIndicator(data.username, data.speaking);
             });
         }
-    
+
         let startGameTimeout;
-    
+
         function setupEventListeners() {
             if (startGameBtn) {
                 startGameBtn.addEventListener('click', function() {
@@ -648,7 +647,7 @@
                 window.location.href = '/';
             });
             document.getElementById('mute-btn').addEventListener('click', window.muteToggle);
-    
+
             document.querySelectorAll('.feedback-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
                     const rating = this.getAttribute('data-rating') === 'true';
@@ -663,14 +662,14 @@
                     document.querySelectorAll('.feedback-btn').forEach(b => b.disabled = true);
                 });
             });
-    
+
             chatBtn.addEventListener('click', function() {
                 chatBox.classList.toggle('active');
                 if (chatBox.classList.contains('active')) {
                     socket.emit('reset_unread_count', { game_id: gameId, username: username });
                 }
             });
-    
+
             chatInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter' && chatInput.value.trim()) {
                     socket.emit('send_chat_message', { 
@@ -681,27 +680,36 @@
                     chatInput.value = '';
                 }
             });
-    
+
             pttBtn.addEventListener('mousedown', startTalking);
             pttBtn.addEventListener('mouseup', stopTalking);
             pttBtn.addEventListener('mouseleave', stopTalking);
             pttBtn.addEventListener('touchstart', startTalkingMobile);
             pttBtn.addEventListener('touchend', stopTalking);
             pttBtn.addEventListener('touchcancel', stopTalking);
-    
+
             unmuteBtn.addEventListener('click', unlockAudio);
         }
-    
+
         async function unlockAudio() {
             if (isAudioUnlocked) return;
             showToast('Unlocking audio...');
             const dummyAudio = new Audio();
-            dummyAudio.src = '/static/select.mp3'; // Use an existing sound file
+            dummyAudio.src = '/static/select.mp3';
             dummyAudio.play()
                 .then(() => {
                     showToast('Audio unlocked!');
                     isAudioUnlocked = true;
                     unmuteBtn.style.display = 'none';
+                    // Reset and rebuild all peer connections
+                    for (let peer in peerConnections) {
+                        peerConnections[peer].close();
+                        delete peerConnections[peer];
+                    }
+                    if (playersInRoom.length > 0) {
+                        updateVoiceChatParticipants(playersInRoom);
+                    }
+                    // Ensure streams play
                     playersInRoom.forEach(player => {
                         const audio = document.getElementById(`voice-${player}`);
                         if (audio && audio.srcObject) {
@@ -713,14 +721,14 @@
                 })
                 .catch(err => showToast('Audio unlock failed. Try again.'));
         }
-    
+
         async function initializeVoiceChat() {
             if (isVoiceInitialized) return;
             showToast('Initializing voice chat');
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
                 showToast('Mic access granted. Click 🔊 then hold 🎤 to talk.');
-                localStream.getAudioTracks()[0].enabled = false; // Muted by default
+                localStream.getAudioTracks()[0].enabled = false;
                 isVoiceInitialized = true;
                 if (playersInRoom.length > 0) {
                     updateVoiceChatParticipants(playersInRoom);
@@ -731,7 +739,7 @@
                 pttBtn.disabled = true;
             }
         }
-    
+
         function startTalking() {
             if (!isVoiceInitialized) {
                 initializeVoiceChat();
@@ -757,12 +765,12 @@
                 });
             }
         }
-    
+
         function startTalkingMobile(event) {
             event.preventDefault();
             startTalking();
         }
-    
+
         function stopTalking() {
             if (localStream && isPTTPressed) {
                 localStream.getAudioTracks()[0].enabled = false;
@@ -771,7 +779,7 @@
                 socket.emit('speaking_status', { game_id: gameId, username: username, speaking: false });
             }
         }
-    
+
         async function updateVoiceChatParticipants(players) {
             showToast(`Updating players: ${players.join(', ')}`);
             playersInRoom = players.filter(p => p !== username);
@@ -781,7 +789,8 @@
                     <audio id="voice-${p}" autoplay></audio>
                 </div>
             `).join('');
-    
+
+            // Clean up stale connections
             for (let peer in peerConnections) {
                 if (!playersInRoom.includes(peer)) {
                     peerConnections[peer].close();
@@ -789,23 +798,28 @@
                     showToast(`Closed connection with ${peer}`);
                 }
             }
-    
+
             if (isVoiceInitialized) {
                 for (let player of playersInRoom) {
-                    if (!peerConnections[player]) {
+                    if (!peerConnections[player] || peerConnections[player].connectionState === 'closed' || peerConnections[player].connectionState === 'failed') {
+                        await createPeerConnection(player);
+                    } else if (peerConnections[player].connectionState !== 'connected') {
+                        // Restart if not connected
+                        peerConnections[player].close();
+                        delete peerConnections[player];
                         await createPeerConnection(player);
                     }
                 }
             }
         }
-    
+
         function updateSpeakingIndicator(player, isSpeaking) {
             const playerEl = speakingIndicator.querySelector(`.player[data-username="${player}"]`);
             if (playerEl) {
                 playerEl.classList.toggle('speaking', isSpeaking);
             }
         }
-    
+
         async function createPeerConnection(peerUsername) {
             showToast(`Connecting to ${peerUsername}`);
             const config = {
@@ -816,24 +830,24 @@
                     { urls: 'turn:global.relay.metered.ca:443', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' },
                     { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' }
                 ],
-                iceTransportPolicy: 'relay' // Force TURN
+                iceTransportPolicy: 'relay'
             };
             peerConnections[peerUsername] = new RTCPeerConnection(config);
-    
+
             if (localStream) {
                 localStream.getTracks().forEach(track => {
                     peerConnections[peerUsername].addTrack(track, localStream);
                     showToast(`Added mic to ${peerUsername}`);
                 });
             }
-    
+
             peerConnections[peerUsername].onicecandidate = event => {
                 if (event.candidate) {
                     showToast(`Sending candidate to ${peerUsername}`);
                     socket.emit('voice_candidate', { game_id: gameId, from: username, to: peerUsername, candidate: event.candidate });
                 }
             };
-    
+
             peerConnections[peerUsername].ontrack = event => {
                 showToast(`Stream received from ${peerUsername}`);
                 const audio = document.getElementById(`voice-${peerUsername}`);
@@ -851,7 +865,7 @@
                     showToast(`No audio element for ${peerUsername}`);
                 }
             };
-    
+
             peerConnections[peerUsername].onconnectionstatechange = () => {
                 const state = peerConnections[peerUsername].connectionState;
                 showToast(`Connection with ${peerUsername}: ${state}`);
@@ -861,7 +875,7 @@
                     showToast(`Connection failed with ${peerUsername}`);
                 }
             };
-    
+
             try {
                 const offer = await peerConnections[peerUsername].createOffer();
                 await peerConnections[peerUsername].setLocalDescription(offer);
@@ -870,7 +884,7 @@
                 showToast(`Error connecting to ${peerUsername}`);
             }
         }
-    
+
         async function handleOffer(from, offer) {
             if (!peerConnections[from]) {
                 const config = {
@@ -881,24 +895,24 @@
                         { urls: 'turn:global.relay.metered.ca:443', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' },
                         { urls: 'turns:global.relay.metered.ca:443?transport=tcp', username: '0284347a98a59a7761092e15', credential: 'Gurx7T74oANA9tmJ' }
                     ],
-                    iceTransportPolicy: 'relay' // Force TURN
+                    iceTransportPolicy: 'relay'
                 };
                 peerConnections[from] = new RTCPeerConnection(config);
-    
+
                 if (localStream) {
                     localStream.getTracks().forEach(track => {
                         peerConnections[from].addTrack(track, localStream);
                         showToast(`Added mic to ${from}`);
                     });
                 }
-    
+
                 peerConnections[from].onicecandidate = event => {
                     if (event.candidate) {
                         showToast(`Sending candidate to ${from}`);
                         socket.emit('voice_candidate', { game_id: gameId, from: username, to: from, candidate: event.candidate });
                     }
                 };
-    
+
                 peerConnections[from].ontrack = event => {
                     showToast(`Stream received from ${from}`);
                     const audio = document.getElementById(`voice-${from}`);
@@ -916,7 +930,7 @@
                         showToast(`No audio element for ${from}`);
                     }
                 };
-    
+
                 peerConnections[from].onconnectionstatechange = () => {
                     const state = peerConnections[from].connectionState;
                     showToast(`Connection with ${from}: ${state}`);
@@ -927,7 +941,7 @@
                     }
                 };
             }
-    
+
             try {
                 await peerConnections[from].setRemoteDescription(new RTCSessionDescription(offer));
                 const answer = await peerConnections[from].createAnswer();
@@ -937,7 +951,7 @@
                 showToast(`Error handling offer from ${from}`);
             }
         }
-    
+
         async function handleAnswer(from, answer) {
             try {
                 await peerConnections[from].setRemoteDescription(new RTCSessionDescription(answer));
@@ -946,7 +960,7 @@
                 showToast(`Error handling answer from ${from}`);
             }
         }
-    
+
         async function handleCandidate(from, candidate) {
             try {
                 if (peerConnections[from]) {
@@ -957,7 +971,7 @@
                 showToast(`Error adding candidate from ${from}`);
             }
         }
-    
+
         function updatePlayerList(players, emojis) {
             playerEmojis = emojis;
             const playerList = document.getElementById('player-list');
@@ -973,7 +987,7 @@
                 playerList.appendChild(li);
             });
         }
-    
+
         function startGame(data) {
             hideAllSections();
             scoreboard.style.display = 'block';
@@ -987,7 +1001,7 @@
                 showWaitingForTopic(data.current_player);
             }
         }
-    
+
         function showWaitingForTopic(player) {
             hideAllSections();
             scoreboard.style.display = 'block';
@@ -997,7 +1011,7 @@
             waitingDiv.innerHTML = `<h3>Waiting for ${player} to select a topic...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
             document.querySelector('.card-body').appendChild(waitingDiv);
         }
-    
+
         function showLoadingQuestion() {
             hideAllSections();
             scoreboard.style.display = 'block';
@@ -1007,7 +1021,7 @@
             loadingDiv.innerHTML = `<h3>Generating Question...</h3><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>`;
             document.querySelector('.card-body').appendChild(loadingDiv);
         }
-    
+
         function showQuestion(data) {
             hideAllSections();
             questionDisplay.style.display = 'block';
@@ -1032,7 +1046,7 @@
             document.getElementById('answer-progress').style.width = '0%';
             startTimer();
         }
-    
+
         function startTimer() {
             timeLeft = 30;
             timerProgress.style.width = '100%';
@@ -1048,7 +1062,7 @@
                 }
             }, 1000);
         }
-    
+
         function playerAnswered(playerName) {
             const playerCount = document.getElementById('player-list').childElementCount;
             if (playerCount > 1) {
@@ -1065,7 +1079,7 @@
                 document.getElementById('answer-progress').style.width = `${progress}%`;
             }
         }
-    
+
         function showResults(data) {
             clearInterval(timerInterval);
             hideAllSections();
@@ -1096,7 +1110,7 @@
             updateScoreboard(data.scores, data.player_emojis);
             startNextRoundCountdown(data.next_player);
         }
-    
+
         function startNextRoundCountdown(nextPlayer) {
             const progressBar = document.getElementById('next-round-progress');
             progressBar.style.width = '0%';
@@ -1115,13 +1129,13 @@
                 }
             }, 10000);
         }
-    
+
         function endGame(data) {
             clearInterval(timerInterval);
             hideAllSections();
             window.location.href = `/final_scoreboard/${gameId}`;
         }
-    
+
         function resetGame(data) {
             clearInterval(timerInterval);
             hideAllSections();
@@ -1134,7 +1148,7 @@
             updatePlayerList(data.players, data.player_emojis);
             updateScoreboard(data.scores, data.player_emojis);
         }
-    
+
         function updateScoreboard(scores, emojis) {
             playerEmojis = emojis;
             const scoresTableBody = document.getElementById('scores-table-body');
@@ -1147,17 +1161,17 @@
                 scoresTableBody.appendChild(tr);
             });
         }
-    
+
         function selectAnswer(answer) {
             selectedAnswer = answer;
             document.querySelectorAll('.list-group-item').forEach(button => button.classList.remove('active'));
             document.getElementById(`option-${answer.toLowerCase()}`).classList.add('active');
         }
-    
+
         function disableAnswerButtons() {
             document.querySelectorAll('.list-group-item').forEach(button => button.disabled = true);
         }
-    
+
         function addChatMessage(sender, message) {
             const messageDiv = document.createElement('div');
             messageDiv.className = 'chat-message';
@@ -1165,7 +1179,7 @@
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
-    
+
         function updateUnreadCount(count) {
             unreadCountBadge.textContent = count;
             unreadCountBadge.style.display = count > 0 ? 'inline' : 'none';
