@@ -83,7 +83,7 @@ with app.app_context():
         logger.error(f"Database connection failed: {str(e)}")
         raise
 
-socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True, ping_timeout=20)
+socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True, ping_timeout=60)
 
 # Load environment variables
 load_dotenv()
@@ -661,7 +661,7 @@ def handle_join_game_room(data):
             socketio.emit('player_rejoined', {
                 'username': username,
                 'players': [p.username for p in players],
-                'scores': {p.username: p.score for p in players},
+                'scores': {p.username: p.score for p in players],
                 'player_emojis': {p.username: p.emoji for p in players},
                 'status': game.status,
                 'current_player': current_player.username if current_player else None,
@@ -707,7 +707,7 @@ def handle_start_game(data):
         socketio.emit('game_started', {
             'current_player': current_player.username,
             'players': [p.username for p in players],
-            'scores': {p.username: p.score for p in players},
+            'scores': {p.username: p.score for p in players],
             'player_emojis': {p.username: p.emoji for p in players}
         }, room=game_id)
         update_game_activity(game_id)
@@ -839,8 +839,11 @@ def handle_submit_answer(data):
 
         active_players = Player.query.filter_by(game_id=game_id, disconnected=False).all()
         answers_submitted = Answer.query.filter_by(game_id=game_id, question_id=current_question_id).count()
-        if answers_submitted >= len(active_players):
-            logger.debug(f"Game {game_id}: All {len(active_players)} active players answered, processing results")
+        total_players = Player.query.filter_by(game_id=game_id).count()
+        logger.debug(f"Game {game_id}: Active players: {[p.username for p in active_players]}, Total: {len(active_players)}")
+        logger.debug(f"Game {game_id}: Answers submitted: {answers_submitted}, Total players: {total_players}")
+        if answers_submitted >= len(active_players) and answers_submitted >= total_players:
+            logger.debug(f"Game {game_id}: All {len(active_players)} active players answered out of {total_players} total, processing results")
             if game_id in active_timers:
                 active_timers[game_id].cancel()
                 del active_timers[game_id]
