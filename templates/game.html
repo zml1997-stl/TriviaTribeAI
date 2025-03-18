@@ -263,7 +263,7 @@
         let selectedAnswer = null;
         let playerEmojis = {};
         let reconnectAttempts = 0;
-        const maxReconnectAttempts = 5;
+        const maxReconnectAttempts = 10;  // Increased from 5
         let currentTopicId = null;
         let currentTopic = null;
         let currentQuestionId = null;
@@ -318,7 +318,9 @@
             socket = io({
                 reconnection: true,
                 reconnectionAttempts: maxReconnectAttempts,
-                reconnectionDelay: 1000
+                reconnectionDelay: 500,  // Reduced from 1000ms for faster retries
+                reconnectionDelayMax: 2000,
+                randomizationFactor: 0.5
             });
 
             socket.on('connect', function() {
