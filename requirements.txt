@@ -2,6 +2,7 @@ Flask
 Flask-SocketIO
 Flask-SQLAlchemy
 Flask-Migrate
+Flask-Login
 google-generativeai
 python-dotenv
 gunicorn
