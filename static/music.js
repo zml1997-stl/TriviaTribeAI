@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", function() {
     let currentTrack = playlist.home;
     let audioElement = new Audio(currentTrack);
     audioElement.loop = true;
-    audioElement.volume = 0.3; // Fixed volume to avoid device override
+    // Remove fixed volume: audioElement.volume = 0.3;
 
     // Sound effects
     const selectSound = new Audio('/static/select.mp3');
@@ -15,11 +15,12 @@ document.addEventListener("DOMContentLoaded", function() {
     const correctSound = new Audio('/static/correct.mp3');
     const wrongSound = new Audio('/static/wrong.mp3');
     const roundEndSound = new Audio('/static/round_end.mp3');
-    selectSound.volume = 0.5;
-    submitSound.volume = 0.5;
-    correctSound.volume = 0.5;
-    wrongSound.volume = 0.5;
-    roundEndSound.volume = 0.5;
+    // Remove fixed volumes for sound effects
+    // selectSound.volume = 0.5;
+    // submitSound.volume = 0.5;
+    // correctSound.volume = 0.5;
+    // wrongSound.volume = 0.5;
+    // roundEndSound.volume = 0.5;
 
     // DOM elements
     const musicControlBtn = document.getElementById("music-control-btn");
@@ -30,19 +31,17 @@ document.addEventListener("DOMContentLoaded", function() {
         isPlaying: sessionStorage.getItem("musicIsPlaying") === "true",
         currentTime: parseFloat(sessionStorage.getItem("musicCurrentTime")) || 0,
         isMuted: sessionStorage.getItem("musicIsMuted") === "true",
-        volume: parseFloat(sessionStorage.getItem("musicVolume")) || 0.3
+        // Remove volume from saved state since we want device to handle it
     };
 
     // Apply saved state
     audioElement.currentTime = savedState.currentTime;
-    audioElement.volume = savedState.volume; // Consistent volume
     audioElement.muted = savedState.isMuted;
 
     // Only play if not muted and was playing before
     if (!savedState.isMuted && savedState.isPlaying) {
         audioElement.play().catch(err => {
             console.log("Autoplay blocked:", err);
-            // Avoid forcing playback that might reset device volume
         });
     }
 
@@ -69,29 +68,25 @@ document.addEventListener("DOMContentLoaded", function() {
         sessionStorage.setItem("musicCurrentTime", audioElement.currentTime);
     });
 
-    audioElement.addEventListener("volumechange", function() {
-        if (!audioElement.muted) {
-            sessionStorage.setItem("musicVolume", audioElement.volume);
-        }
-    });
+    // Remove volumechange listener since we're not controlling volume
+    // audioElement.addEventListener("volumechange", function() {...});
 
     // Handle page unload
     window.addEventListener("beforeunload", function() {
         sessionStorage.setItem("musicIsPlaying", !audioElement.paused);
         sessionStorage.setItem("musicCurrentTime", audioElement.currentTime);
         sessionStorage.setItem("musicIsMuted", audioElement.muted);
-        sessionStorage.setItem("musicVolume", audioElement.volume);
+        // Remove volume save: sessionStorage.setItem("musicVolume", audioElement.volume);
     });
 
     // Switch track function
     function switchTrack(newTrack) {
         if (currentTrack !== newTrack) {
             const wasPlaying = !audioElement.paused;
-            audioElement.pause(); // Pause first to avoid volume spike
+            audioElement.pause();
             currentTrack = newTrack;
             audioElement.src = currentTrack;
             audioElement.currentTime = 0;
-            audioElement.volume = savedState.volume; // Restore saved volume
             audioElement.muted = savedState.isMuted;
             if (wasPlaying && !savedState.isMuted) {
                 audioElement.play().catch(err => console.log("Switch playback blocked:", err));
