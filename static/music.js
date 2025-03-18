@@ -7,7 +7,6 @@ document.addEventListener("DOMContentLoaded", function() {
     let currentTrack = playlist.home;
     let audioElement = new Audio(currentTrack);
     audioElement.loop = true;
-    // Remove fixed volume: audioElement.volume = 0.3;
 
     // Sound effects
     const selectSound = new Audio('/static/select.mp3');
@@ -15,12 +14,6 @@ document.addEventListener("DOMContentLoaded", function() {
     const correctSound = new Audio('/static/correct.mp3');
     const wrongSound = new Audio('/static/wrong.mp3');
     const roundEndSound = new Audio('/static/round_end.mp3');
-    // Remove fixed volumes for sound effects
-    // selectSound.volume = 0.5;
-    // submitSound.volume = 0.5;
-    // correctSound.volume = 0.5;
-    // wrongSound.volume = 0.5;
-    // roundEndSound.volume = 0.5;
 
     // DOM elements
     const musicControlBtn = document.getElementById("music-control-btn");
@@ -31,12 +24,16 @@ document.addEventListener("DOMContentLoaded", function() {
         isPlaying: sessionStorage.getItem("musicIsPlaying") === "true",
         currentTime: parseFloat(sessionStorage.getItem("musicCurrentTime")) || 0,
         isMuted: sessionStorage.getItem("musicIsMuted") === "true",
-        // Remove volume from saved state since we want device to handle it
     };
 
-    // Apply saved state
+    // Apply saved state to all audio elements
     audioElement.currentTime = savedState.currentTime;
     audioElement.muted = savedState.isMuted;
+    selectSound.muted = savedState.isMuted;
+    submitSound.muted = savedState.isMuted;
+    correctSound.muted = savedState.isMuted;
+    wrongSound.muted = savedState.isMuted;
+    roundEndSound.muted = savedState.isMuted;
 
     // Only play if not muted and was playing before
     if (!savedState.isMuted && savedState.isPlaying) {
@@ -53,13 +50,19 @@ document.addEventListener("DOMContentLoaded", function() {
         });
     }
 
-    // Mute/Unmute toggle
+    // Mute/Unmute toggle for all audio
     if (muteBtn) {
         muteBtn.addEventListener("click", function() {
-            audioElement.muted = !audioElement.muted;
-            sessionStorage.setItem("musicIsMuted", audioElement.muted);
-            muteBtn.textContent = audioElement.muted ? '🔊' : '🔇';
-            muteBtn.classList.toggle("btn-muted", audioElement.muted);
+            const isMuted = !audioElement.muted; // Toggle state
+            audioElement.muted = isMuted;
+            selectSound.muted = isMuted;
+            submitSound.muted = isMuted;
+            correctSound.muted = isMuted;
+            wrongSound.muted = isMuted;
+            roundEndSound.muted = isMuted;
+            sessionStorage.setItem("musicIsMuted", isMuted);
+            muteBtn.textContent = isMuted ? '🔊' : '🔇';
+            muteBtn.classList.toggle("btn-muted", isMuted);
         });
     }
 
@@ -68,15 +71,11 @@ document.addEventListener("DOMContentLoaded", function() {
         sessionStorage.setItem("musicCurrentTime", audioElement.currentTime);
     });
 
-    // Remove volumechange listener since we're not controlling volume
-    // audioElement.addEventListener("volumechange", function() {...});
-
     // Handle page unload
     window.addEventListener("beforeunload", function() {
         sessionStorage.setItem("musicIsPlaying", !audioElement.paused);
         sessionStorage.setItem("musicCurrentTime", audioElement.currentTime);
         sessionStorage.setItem("musicIsMuted", audioElement.muted);
-        // Remove volume save: sessionStorage.setItem("musicVolume", audioElement.volume);
     });
 
     // Switch track function
@@ -103,9 +102,15 @@ document.addEventListener("DOMContentLoaded", function() {
     window.playWrongSound = function() { wrongSound.play(); };
     window.playRoundEndSound = function() { roundEndSound.play(); };
     window.muteToggle = function() {
-        audioElement.muted = !audioElement.muted;
-        sessionStorage.setItem("musicIsMuted", audioElement.muted);
-        muteBtn.textContent = audioElement.muted ? '🔊' : '🔇';
-        muteBtn.classList.toggle("btn-muted", audioElement.muted);
+        const isMuted = !audioElement.muted;
+        audioElement.muted = isMuted;
+        selectSound.muted = isMuted;
+        submitSound.muted = isMuted;
+        correctSound.muted = isMuted;
+        wrongSound.muted = isMuted;
+        roundEndSound.muted = isMuted;
+        sessionStorage.setItem("musicIsMuted", isMuted);
+        muteBtn.textContent = isMuted ? '🔊' : '🔇';
+        muteBtn.classList.toggle("btn-muted", isMuted);
     };
 });
