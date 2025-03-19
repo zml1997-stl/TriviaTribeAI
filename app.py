@@ -325,6 +325,8 @@ def cleanup_inactive_games():
             with app.app_context():
                 now = datetime.utcnow()
                 inactive_threshold = now - timedelta(minutes=2)
+
+                # Clean up inactive games
                 inactive_games = Game.query.filter(Game.last_activity < inactive_threshold).all()
                 for game in inactive_games:
                     if game.id in active_timers:
@@ -339,10 +341,31 @@ def cleanup_inactive_games():
                         del random_click_counters[game.id]
                     if game.id in unread_messages:
                         del unread_messages[game.id]
+
+                # Clean up inactive topics
+                # Topics are considered inactive if they have no associated questions or ratings
+                # and haven't been referenced in the last 2 minutes
+                active_game_ids = [game.id for game in Game.query.filter(Game.last_activity >= inactive_threshold).all()]
+                inactive_topics = Topic.query.outerjoin(Question, Topic.id == Question.topic_id)\
+                                            .outerjoin(Rating, Topic.id == Rating.topic_id)\
+                                            .filter(Question.id.is_(None), Rating.id.is_(None))\
+                                            .all()
+
+                for topic in inactive_topics:
+                    # Check if the topic is tied to any active game indirectly via recent questions
+                    last_used = db.session.query(func.max(Question.timestamp))\
+                                         .filter(Question.topic_id == topic.id)\
+                                         .scalar() or datetime.min
+                    if last_used < inactive_threshold and not any(q.game_id in active_game_ids for q in Question.query.filter_by(topic_id=topic.id).all()):
+                        db.session.delete(topic)
+                        logger.info(f"Cleaned up inactive topic: {topic.normalized_name} (ID: {topic.id})")
+
+                db.session.commit()
+
         except Exception as e:
             logger.error(f"Error in cleanup_inactive_games: {str(e)}")
             db.session.rollback()
-        socketio.sleep(60)
+        socketio.sleep(60)  # Run every minute
 
 socketio.start_background_task(cleanup_inactive_games)
 
