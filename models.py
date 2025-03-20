@@ -56,6 +56,7 @@ class Question(db.Model):
     topic_id = db.Column(db.Integer, db.ForeignKey('topics.id'), nullable=False)
     question_text = db.Column(db.Text, nullable=False)
     answer_text = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=db.func.now(), nullable=False)  # Added timestamp field
 
     answers = db.relationship('Answer', backref='question', lazy=True, cascade='all, delete-orphan')
 
