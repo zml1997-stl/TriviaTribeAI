@@ -343,22 +343,48 @@ def cleanup_inactive_games():
                         del unread_messages[game.id]
 
                 # Clean up inactive topics
-                # Topics are considered inactive if they have no associated questions or ratings
-                # and haven't been referenced in the last 2 minutes
                 active_game_ids = [game.id for game in Game.query.filter(Game.last_activity >= inactive_threshold).all()]
+                
+                # Find topics that have no questions or ratings
                 inactive_topics = Topic.query.outerjoin(Question, Topic.id == Question.topic_id)\
                                             .outerjoin(Rating, Topic.id == Rating.topic_id)\
                                             .filter(Question.id.is_(None), Rating.id.is_(None))\
                                             .all()
 
+                # Also check topics that have questions or ratings but are no longer active
+                all_topics = Topic.query.all()
+                for topic in all_topics:
+                    # Skip if already identified as inactive (no questions or ratings)
+                    if topic in inactive_topics:
+                        continue
+
+                    # Check the most recent question timestamp for this topic
+                    last_question_time = db.session.query(func.max(Question.timestamp))\
+                                                  .filter(Question.topic_id == topic.id)\
+                                                  .scalar() or datetime.min
+
+                    # Check if the topic has ratings tied to active games
+                    has_active_ratings = db.session.query(Rating)\
+                                                  .join(Game, Rating.game_id == Game.id)\
+                                                  .filter(Rating.topic_id == topic.id, Game.last_activity >= inactive_threshold)\
+                                                  .count() > 0
+
+                    # Check if the topic has questions tied to active games
+                    has_active_questions = db.session.query(Question)\
+                                                    .filter(Question.topic_id == topic.id, Question.game_id.in_(active_game_ids))\
+                                                    .count() > 0
+
+                    # A topic is considered inactive if:
+                    # 1. Its last question is older than 2 minutes (if it has questions)
+                    # 2. It has no ratings tied to active games
+                    # 3. It has no questions tied to active games
+                    if (last_question_time < inactive_threshold and not has_active_ratings and not has_active_questions):
+                        inactive_topics.append(topic)
+
+                # Delete inactive topics
                 for topic in inactive_topics:
-                    # Check if the topic is tied to any active game indirectly via recent questions
-                    last_used = db.session.query(func.max(Question.timestamp))\
-                                         .filter(Question.topic_id == topic.id)\
-                                         .scalar() or datetime.min
-                    if last_used < inactive_threshold and not any(q.game_id in active_game_ids for q in Question.query.filter_by(topic_id=topic.id).all()):
-                        db.session.delete(topic)
-                        logger.info(f"Cleaned up inactive topic: {topic.normalized_name} (ID: {topic.id})")
+                    db.session.delete(topic)
+                    logger.info(f"Cleaned up inactive topic: {topic.normalized_name} (ID: {topic.id})")
 
                 db.session.commit()
 
