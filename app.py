@@ -286,7 +286,7 @@ def process_round_results(game_id):
         max_score = max([p.score for p in Player.query.filter_by(game_id=game_id).all()] + [0])
         current_question = Question.query.filter_by(id=current_question_id).first()
         logger.debug(f"Game {game_id}: Processed results for question_id {current_question_id}, max_score: {max_score}")
-        if max_score >= 15:
+        if max_score >= 10:
             socketio.emit('game_ended', {'scores': {p.username: p.score for p in Player.query.filter_by(game_id=game_id).all()}, 'player_emojis': {p.username: p.emoji for p in Player.query.filter_by(game_id=game_id).all()}}, room=game_id)
         else:
             next_player = get_next_active_player(game_id)
