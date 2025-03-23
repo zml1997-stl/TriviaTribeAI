@@ -181,15 +181,15 @@ def get_trivia_question(topic, game_id):
         As an expert in crafting engaging and addictive trivia questions, your task is to generate a trivia question about "{topic}" that is both entertaining and informative. The question should spark curiosity, surprise players, and have a single, definitive answer.  
         
         ### **Requirements:**  
-        - **Engaging & Fun:** Make the question intriguing, playful, and moderately challenging—enough to keep players engaged without causing frustration. Use humor, unexpected twists, or surprising facts to make it stand out.  
-        - **Clear & Concise:** Players have only 30 seconds to read and answer, so keep wording simple, direct, and easy to grasp at a glance.  
-        - **Relevant & Fresh:** Focus on modern times unless the topic specifically relates to a historical event or period. Avoid overused trivia clichés.  
-        - **Factually Accurate & Unambiguous:** The question must be precise, well-researched, and have only one correct answer. No vague or misleading wording.  
-        - **No Direct Hints:** The correct answer (or synonyms) must not appear in the question itself.  
-        - **Completely Unique (Critical):** The question and answer MUST be entirely distinct from any previous ones in this game. Avoid repeating themes, keywords, or related answers (e.g., if a past answer was "Einstein," do not use "relativity" or another famous physicist). Prior questions and answers:  
+        - **Engaging & Fun:** Create a question that’s lively, playful, and moderately challenging—enough to hook players without being too tough. Add humor, a fun twist, or a cool fact to make it memorable.  
+        - **Clear & Concise:** Players have 30 seconds to read and answer, so use simple, straightforward wording that’s easy to understand quickly.  
+        - **Relevant & Fresh:** Stick to modern times unless the topic is tied to history. Skip boring or overdone trivia ideas.  
+        - **Factually Accurate & Unambiguous:** Ensure the question is correct, well-checked, and has just one clear answer. Avoid confusion or tricky wording.  
+        - **No Direct Hints:** Don’t sneak the correct answer (or similar words) into the question itself.  
+        - **Completely Unique (Critical):** The question and answer MUST be totally new and different from any before in this game. Avoid reusing themes, keywords, or related answers (e.g., if a past answer was "Einstein," skip "relativity" or other physicists). Prior questions and answers:  
           {prior_questions_str}  
-        - **Multiple Choice Options:** Provide four answer choices—one correct, three incorrect but believable. Ensure distractors are reasonable and distinct from answers.  
-        - **Interesting Explanation:** Include a 1-2 sentence explanation with an intriguing fact to keep players engaged.  
+        - **Multiple Choice Options:** Give four answer choices—one right, three wrong but plausible. Make distractors sensible and different from each other.  
+        - **Interesting Explanation:** Add a 1-2 sentence explanation with a neat fact to keep players interested.  
           
         ### **Response Format (JSON):**  
         ```json  
@@ -198,7 +198,7 @@ def get_trivia_question(topic, game_id):
           "answer": "string",  
           "options": ["string", "string", "string", "string"],  
           "explanation": "string"  
-        }}
+        }}  
         """
         for attempt in range(8):
             try:
