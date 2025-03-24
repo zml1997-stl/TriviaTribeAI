@@ -178,18 +178,18 @@ def get_trivia_question(topic, game_id):
         prior_questions_list = [f"- Question: {q.question_text} (Answer: {q.answer_text})" for q in prior_questions]
         prior_questions_str = "\n".join(prior_questions_list[:10]) if prior_questions_list else "None"
         prompt = f"""
-        As an expert in crafting engaging and addictive trivia questions, your task is to generate a trivia question about "{topic}" that is both entertaining and informative. The question should spark curiosity, surprise players, and have a single, definitive answer.  
+        As an expert in crafting engaging and addictive trivia questions, your task is to generate a trivia question about "{topic}" that is both entertaining and informative. The question should spark curiosity, delight players, and have a single, definitive answer.  
         
         ### **Requirements:**  
-        - **Engaging & Fun:** Create a question that’s lively, playful, and moderately challenging—enough to hook players without being too tough. Add humor, a fun twist, or a cool fact to make it memorable.  
-        - **Clear & Concise:** Players have 30 seconds to read and answer, so use simple, straightforward wording that’s easy to understand quickly.  
-        - **Relevant & Fresh:** Stick to modern times unless the topic is tied to history. Skip boring or overdone trivia ideas.  
-        - **Factually Accurate & Unambiguous:** Ensure the question is correct, well-checked, and has just one clear answer. Avoid confusion or tricky wording.  
-        - **No Direct Hints:** Don’t sneak the correct answer (or similar words) into the question itself.  
-        - **Completely Unique (Critical):** The question and answer MUST be totally new and different from any before in this game. Avoid reusing themes, keywords, or related answers (e.g., if a past answer was "Einstein," skip "relativity" or other physicists). Prior questions and answers:  
+        - **Engaging & Fun:** Craft a question that’s exciting, playful, and just challenging enough to keep players hooked. Use a fun fact, a quirky angle, or a lighthearted vibe to make it pop.  
+        - **Clear & Concise:** Players have 30 seconds to read and answer, so use simple, direct wording that’s quick to get. Avoid tricky or confusing setups.  
+        - **Relevant & Fresh:** Focus on modern times unless the topic is historical. Steer clear of stale or overused trivia ideas.  
+        - **Factually Accurate & Unambiguous:** Make sure the question is correct, based on real details about "{topic}", and has one obvious answer. No vague, misleading, or made-up content.  
+        - **No Direct Hints:** Keep the correct answer (or similar words) out of the question itself.  
+        - **Completely Unique (Critical):** The question and answer MUST be distinct from any prior ones in this game. If the topic repeats (e.g., "{topic}"), reusing themes or keywords is fine, but the question and answer must be new and different. Prior questions and answers:  
           {prior_questions_str}  
-        - **Multiple Choice Options:** Give four answer choices—one right, three wrong but plausible. Make distractors sensible and different from each other.  
-        - **Interesting Explanation:** Add a 1-2 sentence explanation with a neat fact to keep players interested.  
+        - **Multiple Choice Options:** Provide four answer choices—one correct, three wrong but believable. Distractors should be solid, topic-related, and not too tricky.  
+        - **Interesting Explanation:** Include a 1-2 sentence explanation with a fun, factual tidbit about "{topic}" to keep players smiling.  
           
         ### **Response Format (JSON):**  
         ```json  
